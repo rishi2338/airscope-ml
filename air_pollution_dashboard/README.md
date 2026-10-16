@@ -65,6 +65,9 @@ design system; `ui.py` holds presentation helpers; `quality.py` holds pure AQI,
 validation and spreadsheet-safe CSV functions. The existing pipeline remains in
 `app.py`.
 
+At mobile widths, chart hover toolbars are hidden to avoid covering legends;
+the page-level CSV downloads remain available. Desktop chart toolbars are retained.
+
 ## Data, models and scientific limitations
 
 - [Open-Meteo / Copernicus CAMS](https://open-meteo.com/en/docs/air-quality-api)
