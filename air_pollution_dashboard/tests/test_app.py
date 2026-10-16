@@ -53,6 +53,13 @@ def test_overview_city_and_compare_controls():
     assert any("at least one city" in i.value for i in at.info)
 
 
+def test_sparkline_markup_uses_svg_capable_renderer():
+    at = run_page()
+    cards = next(element.value for element in at.markdown if 'class="pollutant-grid"' in element.value)
+    assert cards.count('<svg class="sparkline"') == 6
+    assert cards.count("<polyline") == 6
+
+
 @pytest.mark.parametrize("view", ["2D relationship", "PCA projection", "Cluster mix", "Cluster map"])
 def test_patterns_renders_only_selected_view(view):
     at = run_page("page_patterns")

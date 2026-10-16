@@ -53,7 +53,8 @@ def pollutant_cards(current, hourly):
             f'{sparkline(history, color)}<div class="sparkline-caption">Past 24 hours · model estimate</div>'
             '</div>'
         )
-    st.html('<div class="pollutant-grid">' + "".join(cards) + "</div>")
+    # st.html's HTML-only sanitizer removes SVG; this markup uses only trusted labels and numeric values.
+    st.markdown('<div class="pollutant-grid">' + "".join(cards) + "</div>", unsafe_allow_html=True)
 
 
 def forecast_cards(future, category):
