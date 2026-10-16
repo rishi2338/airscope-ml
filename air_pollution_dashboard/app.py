@@ -2,7 +2,9 @@ import json
 import os
 import pickle
 from datetime import timedelta
+from html import escape
 from pathlib import Path
+from urllib.parse import quote
 
 import numpy as np
 import pandas as pd
@@ -16,6 +18,8 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+from quality import compute_aqi, csv_export, validate_measurements
+from ui import configure_style, forecast_cards, pollutant_cards
 
 APP_DIR = Path(__file__).resolve().parent
 MODEL_DIR = APP_DIR / "models"
@@ -34,135 +38,7 @@ st.set_page_config(
 # ============================================================================
 # Design system
 # ============================================================================
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
-
-:root {
-  --bg: #070d1a;
-  --ink: #e6edf7;
-  --muted: #94a3b8;
-  --soft: #64748b;
-  --sky: #38bdf8;
-  --violet: #a78bfa;
-  --mint: #34d399;
-  --card: rgba(15, 26, 46, .72);
-  --card-strong: rgba(17, 30, 54, .92);
-  --line: rgba(148, 163, 184, .14);
-  --line-strong: rgba(56, 189, 248, .35);
-}
-html, body, .stApp { font-family: 'Inter', system-ui, sans-serif; color: var(--ink); }
-.stApp {
-  background:
-    radial-gradient(1200px 600px at 85% -10%, rgba(56,189,248,.13), transparent 60%),
-    radial-gradient(900px 500px at -10% 30%, rgba(167,139,250,.10), transparent 60%),
-    radial-gradient(800px 500px at 50% 120%, rgba(52,211,153,.07), transparent 60%),
-    var(--bg);
-  background-attachment: fixed;
-}
-[data-testid="stHeader"] {
-  background: rgba(7, 13, 26, .78) !important;
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--line);
-}
-.block-container { max-width: 1520px !important; padding: 4.6rem clamp(1rem, 2.6vw, 2.8rem) 4rem !important; }
-h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif !important; letter-spacing: -.02em; }
-h3 { font-size: 1.25rem !important; margin-top: .6rem !important; }
-
-/* Top navigation */
-[data-testid="stTopNavLink"], [data-testid="stNavSectionHeader"] { border-radius: 10px !important; }
-[data-testid="stTopNavLink"]:hover { background: rgba(56,189,248,.10) !important; }
-
-/* Sidebar */
-[data-testid="stSidebar"] {
-  background: linear-gradient(180deg, #08111f 0%, #0a1426 100%) !important;
-  border-right: 1px solid var(--line) !important;
-}
-.brand { display:flex; align-items:center; gap:12px; padding:.9rem 1rem; margin:.2rem 0 1.1rem;
-  border:1px solid var(--line-strong); border-radius:16px;
-  background: linear-gradient(135deg, rgba(56,189,248,.14), rgba(167,139,250,.10)); }
-.brand-logo { width:40px; height:40px; border-radius:12px; display:grid; place-items:center;
-  font:700 1.2rem 'Space Grotesk'; color:#04121f; background: linear-gradient(135deg,#7dd3fc,#c4b5fd);
-  box-shadow: 0 0 24px rgba(56,189,248,.25); }
-.brand-name { font:700 1.3rem 'Space Grotesk'; color:#fff; line-height:1.05; }
-.brand-sub { font-size:.62rem; letter-spacing:.14em; color:var(--sky); font-weight:700; margin-top:.25rem; }
-.status { display:flex; gap:10px; align-items:center; padding:.7rem .85rem; margin:.45rem 0;
-  border-radius:12px; border:1px solid var(--line); background: rgba(255,255,255,.03); font-size:.82rem; }
-.status b { color:#f1f5f9; display:block; font-size:.84rem; }
-.status span { color: var(--muted); font-size:.74rem; }
-.dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-.dot-ok { background: var(--mint); box-shadow:0 0 12px rgba(52,211,153,.8); }
-.dot-warn { background:#fbbf24; box-shadow:0 0 12px rgba(251,191,36,.7); }
-
-/* Page header */
-.page-head { display:flex; justify-content:space-between; align-items:flex-end; gap:1.5rem; flex-wrap:wrap;
-  padding: 1.6rem 1.8rem; margin-bottom: 1.4rem; border-radius: 22px; border:1px solid var(--line);
-  background: linear-gradient(120deg, rgba(56,189,248,.10), rgba(167,139,250,.06) 55%, rgba(15,26,46,.6));
-  position:relative; overflow:hidden; animation: rise .5s ease both; }
-.page-head::after { content:""; position:absolute; right:-80px; top:-80px; width:260px; height:260px; border-radius:50%;
-  background: radial-gradient(circle, rgba(56,189,248,.22), transparent 70%); pointer-events:none; }
-.kicker { font-size:.7rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--sky); }
-.page-head h1 { font-size: clamp(1.7rem, 3vw, 2.5rem) !important; margin:.35rem 0 .35rem !important; padding:0 !important; color:#fff; }
-.page-head p { color: var(--muted); margin:0; max-width: 760px; font-size:.98rem; }
-.live-pill { display:inline-flex; align-items:center; gap:8px; padding:.45rem .8rem; border-radius:999px;
-  border:1px solid var(--line); background: rgba(7,13,26,.6); font-size:.78rem; color:var(--muted); white-space:nowrap; }
-.live-pill .dot { animation: pulse 1.8s infinite; }
-@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.35 } }
-@keyframes rise { from { opacity:0; transform: translateY(10px) } to { opacity:1; transform:none } }
-
-/* KPI cards */
-.kpi-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: .2rem 0 1.3rem; }
-.kpi { padding: 1.05rem 1.15rem; border-radius: 18px; border: 1px solid var(--line); background: var(--card);
-  position: relative; overflow: hidden; animation: rise .55s ease both; }
-.kpi::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background: var(--accent, var(--sky)); }
-.kpi-label { font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color: var(--muted); font-weight:600; }
-.kpi-value { font: 700 1.85rem 'Space Grotesk'; color:#fff; margin-top:.3rem; line-height:1.1; }
-.kpi-sub { font-size:.8rem; color: var(--muted); margin-top:.3rem; }
-
-/* AQI badge & cards */
-.aqi-badge { display:inline-block; padding:.18rem .6rem; border-radius:999px; font-size:.72rem; font-weight:700; color:#0b1220; }
-.city-card { padding:1.2rem 1.25rem; border-radius:18px; border:1px solid var(--line); background: var(--card-strong); }
-.city-card h4 { margin:0 0 .2rem !important; color:#fff; font-size:1.3rem !important; }
-.city-aqi { font: 700 3.2rem 'Space Grotesk'; line-height:1; margin:.6rem 0 .3rem; }
-.pgrid { display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; margin-top:.9rem; }
-.pcell { padding:.5rem .55rem; border-radius:10px; background: rgba(255,255,255,.035); border:1px solid var(--line); }
-.pcell small { display:block; color: var(--muted); font-size:.68rem; }
-.pcell b { color:#fff; font-size:.92rem; }
-.advice { margin-top:.9rem; padding:.7rem .85rem; border-radius:12px; font-size:.84rem; color:#cbd5e1;
-  background: rgba(255,255,255,.03); border:1px dashed var(--line); }
-
-.fc-card { padding: .9rem .8rem; border-radius: 16px; border: 1px solid var(--line); background: var(--card);
-  text-align:center; animation: rise .5s ease both; }
-.fc-day { font-size:.75rem; color: var(--muted); font-weight:600; letter-spacing:.04em; }
-.fc-aqi { font: 700 1.9rem 'Space Grotesk'; margin:.35rem 0 .25rem; }
-.fc-meta { font-size:.72rem; color: var(--muted); margin-top:.35rem; }
-
-.result-card { padding: 1.5rem; border-radius: 20px; border:1px solid var(--line-strong);
-  background: linear-gradient(140deg, rgba(56,189,248,.12), rgba(167,139,250,.08)); }
-.result-eyebrow { font-size:.7rem; letter-spacing:.14em; color: var(--sky); font-weight:700; }
-.result-title { font: 700 2.2rem 'Space Grotesk'; color:#fff; margin:.4rem 0; }
-.result-pill { display:inline-block; padding:.3rem .8rem; border-radius:999px; background: rgba(167,139,250,.18);
-  color:#ddd6fe; font-weight:600; font-size:.85rem; }
-.result-desc { color: var(--muted); font-size:.88rem; margin-top:.8rem; }
-
-.step { display:flex; gap:14px; padding:1rem 1.1rem; margin-bottom:.7rem; border-radius:16px; border:1px solid var(--line); background: var(--card); }
-.step-n { width:34px; height:34px; border-radius:10px; flex-shrink:0; display:grid; place-items:center; font-weight:700;
-  color:#04121f; background: linear-gradient(135deg,#7dd3fc,#c4b5fd); }
-.step b { color:#f1f5f9; } .step div div { color: var(--muted); font-size:.9rem; }
-
-.legend { display:flex; flex-wrap:wrap; gap:8px; margin:.3rem 0 .8rem; }
-.legend span { display:inline-flex; align-items:center; gap:6px; font-size:.75rem; color: var(--muted); }
-.legend i { width:10px; height:10px; border-radius:3px; display:inline-block; }
-
-[data-testid="stMetric"] { padding: .9rem 1rem; border-radius: 16px; border:1px solid var(--line); background: var(--card); }
-[data-testid="stTabs"] button[role="tab"] { font-weight:600; }
-[data-testid="stExpander"] { border-radius: 14px !important; border-color: var(--line) !important; background: var(--card); }
-[data-testid="stPlotlyChart"], [data-testid="stIFrame"] { border-radius: 18px; overflow: hidden; }
-.chart-box { border-radius:18px; border:1px solid var(--line); background: var(--card); padding:.4rem; }
-.app-footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:.6rem; margin-top:3rem; padding-top:1.1rem;
-  border-top:1px solid var(--line); color: var(--soft); font-size:.78rem; }
-</style>
-""", unsafe_allow_html=True)
+configure_style()
 
 # ============================================================================
 # Constants
@@ -193,9 +69,6 @@ CITIES = [
 ]
 CITY_INDEX = {c[0]: c for c in CITIES}
 
-# US EPA AQI (2024 revision) breakpoints, as continuous concentration -> index knots
-PM25_KNOTS = ([0, 9.0, 35.4, 55.4, 125.4, 225.4, 325.4], [0, 50, 100, 150, 200, 300, 500])
-PM10_KNOTS = ([0, 54, 154, 254, 354, 424, 604], [0, 50, 100, 150, 200, 300, 500])
 AQI_CATEGORIES = [
     (50, "Good", "#22c55e", "Air quality is satisfactory. Enjoy outdoor activities."),
     (100, "Moderate", "#eab308", "Acceptable. Unusually sensitive people should limit long outdoor exertion."),
@@ -206,17 +79,6 @@ AQI_CATEGORIES = [
 ]
 AQI_COLOR_MAP = {name: color for _, name, color, _ in AQI_CATEGORIES}
 AQI_ORDER = [name for _, name, _, _ in AQI_CATEGORIES]
-
-
-def _sub_index(c, knots):
-    if c is None or pd.isna(c):
-        return np.nan
-    return float(np.interp(max(float(c), 0.0), knots[0], knots[1]))
-
-
-def compute_aqi(pm25, pm10=np.nan):
-    vals = [v for v in (_sub_index(pm25, PM25_KNOTS), _sub_index(pm10, PM10_KNOTS)) if not np.isnan(v)]
-    return float(round(max(vals))) if vals else np.nan
 
 
 def aqi_category(aqi):
@@ -241,10 +103,10 @@ def aqi_legend_html():
 def style_fig(fig, height=420, legend=True, margin=None):
     fig.update_layout(
         template="plotly_dark", height=height, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, sans-serif", color="#cbd5e1", size=12),
+        font=dict(family="DM Sans, sans-serif", color="#a9bacb", size=11),
         margin=margin or dict(l=10, r=10, t=48, b=10), showlegend=legend,
         legend=dict(bgcolor="rgba(0,0,0,0)", orientation="h", yanchor="bottom", y=1.02, x=0),
-        hoverlabel=dict(bgcolor="#0f1a2e", bordercolor="#334155", font_color="#e2e8f0"),
+        hoverlabel=dict(bgcolor="#161e28", bordercolor="#354454", font_color="#e9f0f7"),
     )
     if fig.layout.title.text:
         fig.update_layout(title_font=dict(family="Space Grotesk, sans-serif", size=16, color="#f1f5f9"))
@@ -264,6 +126,8 @@ PLOT_CONFIG = {"displaylogo": False, "scrollZoom": True}
 def load_artifacts():
     needed = [MODEL_PATH, SCALER_PATH, FEATURES_PATH]
     if not all(p.exists() for p in needed):
+        if any(p.exists() for p in needed):
+            raise ValueError("Incomplete artifact bundle")
         return None
     with open(MODEL_PATH, "rb") as f:
         model = pickle.load(f)
@@ -275,7 +139,18 @@ def load_artifacts():
     if PROFILES_PATH.exists():
         with open(PROFILES_PATH, "rb") as f:
             profiles = pickle.load(f)
-    return model, scaler, list(features), profiles
+    features = list(features)
+    if not features or any(not isinstance(f, str) for f in features) or len(set(features)) != len(features):
+        raise ValueError("Invalid feature list")
+    if not hasattr(model, "cluster_centers_") or not hasattr(scaler, "transform"):
+        raise ValueError("Expected fitted K-Means and scaler")
+    if model.cluster_centers_.shape[1] != len(features) or scaler.n_features_in_ != len(features):
+        raise ValueError("Artifact feature dimensions do not match")
+    probe = scaler.inverse_transform(model.cluster_centers_[:1])
+    if not np.isfinite(probe).all():
+        raise ValueError("Invalid centroids")
+    model.predict(scaler.transform(pd.DataFrame(probe, columns=features)))
+    return model, scaler, features, profiles
 
 
 def make_demo_data(n=650, seed=19):
@@ -314,21 +189,26 @@ def infer_profile_labels(data, labels):
 
 @st.cache_resource(show_spinner=False)
 def get_cluster_engine():
-    artifacts = load_artifacts()
+    error = ""
+    try:
+        artifacts = load_artifacts()
+    except Exception:
+        artifacts = None
+        error = "Saved model artifacts could not be loaded or are incompatible. Using a demo model. Check their features and scikit-learn version."
     if artifacts:
         model, scaler, features, profiles = artifacts
-        return model, scaler, features, profiles, False
+        return model, scaler, features, profiles, bool(getattr(model, "_airscope_demo", False)), error
     demo = make_demo_data()
     scaler = StandardScaler().fit(demo[DEFAULT_FEATURES])
     model = KMeans(n_clusters=3, random_state=42, n_init=10).fit(scaler.transform(demo[DEFAULT_FEATURES]))
-    return model, scaler, DEFAULT_FEATURES, None, True
+    return model, scaler, DEFAULT_FEATURES, None, True, error
 
 
-model, scaler, features, profiles, demo_mode = get_cluster_engine()
+model, scaler, features, profiles, demo_mode, artifact_error = get_cluster_engine()
 
 
 def assign_clusters(frame):
-    scaled = scaler.transform(frame[features])
+    scaled = scaler.transform(validate_measurements(frame, features))
     return model.predict(scaled), scaled
 
 
@@ -338,10 +218,9 @@ def can_cluster(frame):
 
 @st.cache_data(show_spinner=False)
 def cluster_label_map():
-    ref = make_demo_data(650)
-    labels, _ = assign_clusters(ref) if can_cluster(ref) else (None, None)
-    mapping = infer_profile_labels(ref, labels) if labels is not None else {}
-    if profiles and isinstance(profiles, dict):
+    ref = pd.DataFrame(scaler.inverse_transform(model.cluster_centers_), columns=features)
+    mapping = infer_profile_labels(ref, np.arange(len(ref))) if "PM2.5" in ref else {}
+    if isinstance(profiles, dict):
         for cid, prof in profiles.items():
             if isinstance(prof, dict) and prof.get("label"):
                 mapping[int(cid)] = prof["label"]
@@ -353,12 +232,7 @@ def cluster_name(cid):
 
 
 def prepare_input(values):
-    frame = pd.DataFrame([values], columns=features).apply(pd.to_numeric, errors="coerce")
-    if frame.isna().any().any():
-        raise ValueError("Please enter a valid numeric value for every required pollutant.")
-    if (frame < 0).any().any():
-        raise ValueError("Pollutant measurements cannot be negative.")
-    return frame
+    return validate_measurements(pd.DataFrame([values]), features)
 
 
 # ============================================================================
@@ -371,11 +245,17 @@ OM_VARS = ["pm2_5", "pm10", "nitrogen_dioxide", "nitrogen_monoxide", "ammonia",
 
 def _om_to_features(hourly):
     h = pd.DataFrame(hourly)
-    h["time"] = pd.to_datetime(h["time"])
+    h["time"] = pd.to_datetime(h["time"], errors="raise")
+    if h.empty or h["time"].isna().any() or h["time"].duplicated().any():
+        raise ValueError("Missing or duplicate hourly timestamps")
+    h = h.sort_values("time").reset_index(drop=True)
+    if not h["time"].diff().dropna().eq(pd.Timedelta(hours=1)).all():
+        raise ValueError("Hourly data must have a continuous hourly time axis")
     for var in OM_VARS:
         if var not in h:
             h[var] = np.nan
-        h[var] = pd.to_numeric(h[var], errors="coerce")
+        h[var] = pd.to_numeric(h[var], errors="coerce").replace([np.inf, -np.inf], np.nan)
+        h.loc[h[var] < 0, var] = np.nan
     out = pd.DataFrame({"time": h["time"]})
     out["PM2.5"] = h["pm2_5"]
     out["PM10"] = h["pm10"]
@@ -391,8 +271,10 @@ def _om_to_features(hourly):
     return out
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=1800, show_spinner=False, max_entries=128)
 def fetch_open_meteo(lats, lons, past_days=PAST_DAYS, forecast_days=CAMS_DAYS):
+    if not lats or len(lats) != len(lons):
+        raise ValueError("Latitude and longitude lists must match")
     params = {
         "latitude": ",".join(f"{x:.4f}" for x in lats),
         "longitude": ",".join(f"{x:.4f}" for x in lons),
@@ -403,9 +285,15 @@ def fetch_open_meteo(lats, lons, past_days=PAST_DAYS, forecast_days=CAMS_DAYS):
     resp.raise_for_status()
     payload = resp.json()
     payload = payload if isinstance(payload, list) else [payload]
+    if len(payload) != len(lats):
+        raise ValueError("Incomplete location response from CAMS")
     frames, offsets = [], []
     for loc in payload:
-        frames.append(_om_to_features(loc["hourly"]))
+        frame = _om_to_features(loc["hourly"])
+        frame[DEFAULT_FEATURES] = frame[DEFAULT_FEATURES].interpolate(limit=6, limit_direction="both")
+        if len(frame) < 24 * 30 or not np.isfinite(frame[DEFAULT_FEATURES]).all().all():
+            raise ValueError("Insufficient pollutant history from CAMS")
+        frames.append(frame)
         offsets.append(int(loc.get("utc_offset_seconds", 0)))
     return frames, offsets
 
@@ -462,6 +350,9 @@ def to_daily(hourly):
     daily = (hourly.assign(date=hourly["time"].dt.normalize())
              .groupby(["city", "date"], as_index=False)
              .agg({**{f: "mean" for f in DEFAULT_FEATURES}, "lat": "first", "lon": "first"}))
+    counts = hourly.assign(date=hourly["time"].dt.normalize()).groupby(["city", "date"]).size()
+    complete = counts[counts == 24].index
+    daily = daily.set_index(["city", "date"]).loc[lambda d: d.index.isin(complete)].reset_index()
     daily["AQI"] = [compute_aqi(a, b) for a, b in zip(daily["PM2.5"], daily["PM10"])]
     return daily
 
@@ -490,7 +381,7 @@ def city_snapshot(hourly, now_local):
 
 
 # ============================================================================
-# Forecasting model (gradient boosting on lagged daily pollutant levels)
+# Forecasting model (Ridge regression on lagged daily pollutant changes)
 # ============================================================================
 LAGS = (1, 2, 3, 7)
 
@@ -525,7 +416,7 @@ def _recursive(models, states, horizon):
         X = np.asarray([_design_row(s["logv"], len(s["logv"]), s["last"] + pd.Timedelta(days=h), s["lat"], s["lon"])
                         for s in states])
         last = np.asarray([s["logv"][-1] for s in states])
-        preds = last + np.column_stack([models[p].predict(X) for p in DEFAULT_FEATURES])
+        preds = np.clip(last + np.column_stack([models[p].predict(X) for p in DEFAULT_FEATURES]), 0, np.log1p(1e6))
         for i, (s, p) in enumerate(zip(states, preds)):
             s["logv"] = np.vstack([s["logv"], p])
             out[i].append(p)
@@ -535,6 +426,9 @@ def _recursive(models, states, horizon):
 @st.cache_resource(show_spinner="Training the forecasting model...")
 def train_forecaster(history: pd.DataFrame, holdout_days: int = 14, eval_horizons=(1, 3, 7)):
     """history: daily observed rows (city, date, lat, lon, pollutants). Returns models + backtest."""
+    validate_measurements(history, DEFAULT_FEATURES)
+    if history.groupby("city").size().min() <= holdout_days + max(LAGS) + 1:
+        raise ValueError("At least 23 complete history days per city are required.")
     X, Y, P, is_test = [], [], [], []
     for _, g in history.groupby("city"):
         g = g.sort_values("date")
@@ -580,7 +474,8 @@ def train_forecaster(history: pd.DataFrame, holdout_days: int = 14, eval_horizon
 
     models = {pol: _make_regressor().fit(X, Y[:, j] - P[:, j]) for j, pol in enumerate(DEFAULT_FEATURES)}
     return {"models": models, "resid_std": resid_std, "metrics": pd.DataFrame(rows),
-            "n_train": int(len(X)), "holdout_days": holdout_days}
+            "n_train": int(len(X)), "holdout_days": holdout_days,
+            "revision": int(pd.util.hash_pandas_object(history, index=True).sum())}
 
 
 def forecast_series(forecaster, groups, horizon):
@@ -597,7 +492,7 @@ def forecast_series(forecaster, groups, horizon):
                 sd = forecaster["resid_std"][pol] * np.sqrt(h)
                 rec[pol] = float(np.expm1(p[j]))
                 rec[f"{pol}_lo"] = float(max(np.expm1(p[j] - 1.28 * sd), 0))
-                rec[f"{pol}_hi"] = float(np.expm1(p[j] + 1.28 * sd))
+                rec[f"{pol}_hi"] = float(np.expm1(min(p[j] + 1.28 * sd, np.log1p(1e6))))
             rows.append(rec)
     fc = pd.DataFrame(rows)
     fc["AQI"] = [compute_aqi(a, b) for a, b in zip(fc["PM2.5"], fc["PM10"])]
@@ -617,7 +512,8 @@ def blend_outlook(ml, cams):
         cams_val = merged[f"{pol}_cams"]
         merged[pol] = np.where(cams_val.notna(), (merged[pol] + cams_val) / 2, merged[pol])
     merged["source"] = np.where(merged["PM2.5_cams"].notna(), "ML + CAMS ensemble", "ML extended")
-    merged = merged.drop(columns=[f"{p}_cams" for p in DEFAULT_FEATURES])
+    merged = merged.drop(columns=[f"{p}_cams" for p in DEFAULT_FEATURES] +
+                         [c for c in merged if c.endswith(("_lo", "_hi"))])
     merged["AQI"] = [compute_aqi(a, b) for a, b in zip(merged["PM2.5"], merged["PM10"])]
     merged["Category"] = [aqi_category(a)[0] for a in merged["AQI"]]
     if can_cluster(merged):
@@ -656,23 +552,26 @@ def google_maps_key():
 # ============================================================================
 
 def page_header(kicker, title, subtitle, data=None):
-    pill = ""
+    provenance = ""
     if data is not None:
         if data["source"] == "live":
-            pill = f'<div class="live-pill"><span class="dot dot-ok"></span>Live · CAMS data · updated {data["now"]:%d %b %H:%M} IST</div>'
+            provenance = f'<span><span class="status-dot"></span>CAMS model · as of {data["now"]:%d %b %Y, %H:%M} IST</span>'
         else:
-            pill = '<div class="live-pill"><span class="dot dot-warn"></span>Offline · synthetic demo data</div>'
-    st.markdown(f"""
-    <section class="page-head">
-      <div><div class="kicker">{kicker}</div><h1>{title}</h1><p>{subtitle}</p></div>
-      {pill}
-    </section>""", unsafe_allow_html=True)
+            provenance = '<span style="color:#fbbf24">Offline · synthetic demonstration data</span>'
+    st.html(f"""
+    <section class="hero">
+      <div class="eyebrow">AirScope / {escape(kicker)}</div>
+      <h1>{escape(title)}</h1><p class="lead">{escape(subtitle)}</p>
+    </section>
+    <div class="context-bar">{provenance}<span>Particulate-only US EPA AQI · not CPCB AQI</span></div>""")
+    if data is not None and data["source"] != "live":
+        st.warning("Live CAMS data is unavailable. All charts, forecasts and evaluation metrics on this page use synthetic demo data.")
 
 
 def kpi_cards(items):
     html = "".join(
-        f'<div class="kpi" style="--accent:{i.get("color", "#38bdf8")}"><div class="kpi-label">{i["label"]}</div>'
-        f'<div class="kpi-value">{i["value"]}</div><div class="kpi-sub">{i.get("sub", "")}</div></div>'
+        f'<div class="kpi"><div class="kpi-label">{escape(str(i["label"]))}</div>'
+        f'<div class="kpi-value">{escape(str(i["value"]))}</div><div class="kpi-sub">{escape(str(i.get("sub", "")))}</div></div>'
         for i in items)
     st.markdown(f'<div class="kpi-grid">{html}</div>', unsafe_allow_html=True)
 
@@ -683,13 +582,13 @@ def city_card(rec, title=None, subtitle=None):
         f'<div class="pcell"><small>{p} · {UNITS[p]}</small><b>{rec[p]:.2f}</b></div>' if p == "CO"
         else f'<div class="pcell"><small>{p} · {UNITS[p]}</small><b>{rec[p]:.0f}</b></div>'
         for p in DEFAULT_FEATURES)
-    profile = f'<div class="kpi-sub">Pattern: <b style="color:#ddd6fe">{rec["Profile"]}</b></div>' if "Profile" in rec and pd.notna(rec.get("Profile")) else ""
+    profile = f'<div class="kpi-sub">Pattern: <b>{escape(str(rec["Profile"]))}</b></div>' if "Profile" in rec and pd.notna(rec.get("Profile")) else ""
     st.markdown(f"""
     <div class="city-card">
-      <div class="kicker">{subtitle or CITY_INDEX.get(rec.get("city"), ("", "India"))[1]}</div>
-      <h4>{title or rec["city"]}</h4>
+      <div class="eyebrow">{escape(subtitle or CITY_INDEX.get(rec.get("city"), ("", "India"))[1])}</div>
+      <h4>{escape(title or rec["city"])}</h4>
       <div class="city-aqi" style="color:{color}">{rec["AQI"]:.0f}</div>
-      {badge(rec["AQI"])} <span class="kpi-sub">US AQI · 24h mean</span>
+      {badge(rec["AQI"])} <span class="kpi-sub">PM-only AQI · 24h mean / daily forecast</span>
       {profile}
       <div class="pgrid">{cells}</div>
       <div class="advice">{advice}</div>
@@ -839,7 +738,7 @@ def render_google_map(data, key, day_index=0, height=600, map_type="roadmap", da
             .replace("__ZOOM__", str(zoom))
             .replace("__MAPTYPE__", map_type)
             .replace("__STYLES__", json.dumps(DARK_STYLE_FLAG if dark else []))
-            .replace("__KEY__", key))
+            .replace("__KEY__", quote(key, safe="")))
     components.html(html, height=height + 4)
 
 
@@ -861,87 +760,152 @@ def google_embed(lat, lon, zoom=11, satellite=False, height=360, query=None):
 # ============================================================================
 
 @st.fragment
-def _dashboard_trend(history, outlook, today):
-    st.markdown("### National trend and 14-day outlook")
-    obs = history.groupby("date")[["PM2.5", "AQI"]].mean().reset_index().tail(60)
-    fc = outlook.groupby("date")[["PM2.5", "PM2.5_lo", "PM2.5_hi", "AQI"]].mean().reset_index()
-    metric = st.segmented_control("Metric", ["AQI", "PM2.5"], default="AQI", key="dash_metric", label_visibility="collapsed") or "AQI"
+def _dashboard_trend(history, outlook, today, city):
+    st.markdown("### History & outlook")
+    controls = st.columns([1.4, 1])
+    metric = controls[0].selectbox("Trend pollutant", ["AQI"] + DEFAULT_FEATURES, key="dash_metric")
+    period = controls[1].segmented_control("History window", [14, 30, 90], default=30, key="dash_period") or 30
+    if city != "All cities":
+        history = history[history["city"] == city]
+        outlook = outlook[outlook["city"] == city]
+    obs = history.groupby("date")[metric].mean().reset_index().tail(period)
+    fc = outlook.groupby("date")[metric].mean().reset_index()
     fig = go.Figure()
-    if metric == "PM2.5":
-        fig.add_trace(go.Scatter(x=pd.concat([fc["date"], fc["date"][::-1]]), y=pd.concat([fc["PM2.5_hi"], fc["PM2.5_lo"][::-1]]),
-                                 fill="toself", fillcolor="rgba(167,139,250,.18)", line=dict(width=0), name="80% range", hoverinfo="skip"))
-    fig.add_trace(go.Scatter(x=obs["date"], y=obs[metric], name="Observed", mode="lines", line=dict(color="#38bdf8", width=2.5)))
-    fig.add_trace(go.Scatter(x=fc["date"], y=fc[metric], name="Predicted", mode="lines+markers",
-                             line=dict(color="#a78bfa", width=2.5, dash="dash"), marker=dict(size=6)))
-    fig.add_vline(x=today, line=dict(color="rgba(226,232,240,.4)", dash="dot"))
-    style_fig(fig, height=380)
-    fig.update_yaxes(title=f"Average {metric}" + (" (µg/m³)" if metric == "PM2.5" else " (US AQI)"))
+    fig.add_trace(go.Scatter(x=obs["date"], y=obs[metric], name="Historical model estimates",
+                             line=dict(color="#38bdf8", width=2.5), fill="tozeroy", fillcolor="rgba(56,189,248,.05)"))
+    fig.add_trace(go.Scatter(x=fc["date"], y=fc[metric], name="Forecast outlook",
+                             line=dict(color="#2dd4bf", width=2, dash="dash"), mode="lines+markers", marker_size=4))
+    fig.add_vline(x=today, line=dict(color="#8191a3", dash="dot"))
+    style_fig(fig, height=330, margin=dict(l=10, r=10, t=40, b=10))
+    fig.update_yaxes(title=metric + ("" if metric == "AQI" else f" ({UNITS[metric]})"), rangemode="tozero")
     st.plotly_chart(fig, config=PLOT_CONFIG, theme=None, key="dash_trend")
+    st.caption("Dotted boundary: today. Historical data is archived CAMS output, not station observations.")
+
+
+@st.fragment
+def _dashboard_comparison(data):
+    st.markdown("### Compare & explore")
+    view = st.segmented_control("Comparison view", ["City comparison", "Pollutant fingerprint", "AQI distribution"],
+                                 default="City comparison", key="dash_compare_view") or "City comparison"
+    snap = data["snap"]
+    if view == "City comparison":
+        cols = st.columns([1, 2])
+        pol = cols[0].selectbox("Compare pollutant", ["AQI"] + DEFAULT_FEATURES, key="dash_compare_pol")
+        cities = cols[1].multiselect("Compare cities", list(CITY_INDEX), default=["Delhi", "Mumbai", "Bengaluru"],
+                                     max_selections=5, key="dash_compare_cities")
+        if not cities:
+            st.info("Select at least one city to compare.")
+            return
+        frame = data["history"][data["history"]["city"].isin(cities)].groupby("city").tail(30)
+        fig = px.line(frame, x="date", y=pol, color="city",
+                      color_discrete_sequence=["#38bdf8", "#2dd4bf", "#a5b4fc", "#fbbf24", "#fb7185"])
+        fig.update_yaxes(title=pol + ("" if pol == "AQI" else f" ({UNITS[pol]})"))
+        fig.update_xaxes(title=None)
+        st.caption("Last 30 complete days · all series use the same units; CO is mg/m³.")
+    elif view == "Pollutant fingerprint":
+        heat = snap.set_index("city")[DEFAULT_FEATURES].sort_values("PM2.5", ascending=False)
+        rel = heat / heat.max().replace(0, np.nan)
+        fig = go.Figure(go.Heatmap(z=rel.values, x=DEFAULT_FEATURES, y=rel.index,
+                                   colorscale=[[0, "#11171f"], [.5, "#175c78"], [1, "#67e8f9"]],
+                                   customdata=heat.values, hovertemplate="%{y} · %{x}: %{customdata:.2f}<extra></extra>",
+                                   colorbar=dict(title="Relative", thickness=10)))
+        fig.update_yaxes(autorange="reversed", tickfont_size=10)
+        st.caption("Normalized per pollutant across cities (0–1); hover for concentrations in each pollutant's units.")
+    else:
+        mix = snap["Category"].value_counts().reindex(AQI_ORDER).dropna().reset_index()
+        mix.columns = ["Category", "Cities"]
+        fig = px.bar(mix, x="Category", y="Cities", color="Category", color_discrete_map=AQI_COLOR_MAP)
+        fig.update_xaxes(title=None)
+    st.plotly_chart(style_fig(fig, height=400), config=PLOT_CONFIG, theme=None, key="dash_comparison")
 
 
 def page_dashboard():
     data = get_data()
     snap, outlook, history = data["snap"], data["outlook"], data["history"]
-    page_header("Air quality intelligence · India",
-                "The air we breathe, <span style='color:#7dd3fc'>now and next.</span>",
-                "Live pollution levels for 26 major Indian cities, machine-learning pattern discovery and a 14-day predicted outlook.",
-                data)
+    page_header("Environmental intelligence", "Air quality, in perspective.",
+                "Track the present. Understand the patterns. Look ahead with transparent, model-driven intelligence.", data)
+    top = st.columns([2, 1])
+    city = top[0].selectbox("Monitoring area", ["All cities"] + list(CITY_INDEX), key="overview_city")
+    top[1].download_button("Export current readings", snap.drop(columns="Color").round(2).to_csv(index=False).encode(),
+                           "airscope_current_readings.csv", "text/csv", icon=":material/download:")
+    selected = snap if city == "All cities" else snap[snap["city"] == city]
+    scope = "26-city average" if city == "All cities" else city
+    current = selected[DEFAULT_FEATURES].mean()
+    aqi = float(round(selected["AQI"].mean()))
+    category, color, advice = aqi_category(aqi)
+    delta = selected["AQI_change"].mean()
+    future = outlook if city == "All cities" else outlook[outlook["city"] == city]
+    tomorrow = future[future["date"] == data["today"] + pd.Timedelta(days=1)]
+    next_aqi = tomorrow["AQI"].mean()
+    next_category, next_color, _ = aqi_category(next_aqi)
+    method = "ML + CAMS" if data["source"] == "live" else "Synthetic demo"
+    scale = "".join(f'<span style="background:{c}"></span>' for _, _, c, _ in AQI_CATEGORIES)
+    st.html(f"""
+    <div class="summary-grid">
+      <section class="aqi-panel">
+        <div class="aqi-heading"><span>{escape(scope)} · rolling 24 hours</span><span>PM-only AQI</span></div>
+        <div class="aqi-reading"><div><span class="aqi-number" style="color:{color}">{aqi:.0f}</span><span class="aqi-unit">/ 500</span></div>
+          <div>{badge(aqi)}<div class="aqi-note">{delta:+.0f} points vs previous 24h</div></div></div>
+        <div class="aqi-note">{escape(advice)}</div>
+        <div class="aqi-scale">{scale}</div><div class="scale-labels"><span>0 · Good</span><span>500 · Hazardous</span></div>
+      </section>
+      <section class="outlook-panel">
+        <div class="aqi-heading"><span>LOOKING AHEAD</span><span>{method}</span></div>
+        <h3>Tomorrow's air quality</h3>
+        <span class="outlook-value" style="color:{next_color}">{next_aqi:.0f}</span>
+        <span class="aqi-unit">AQI · {escape(next_category)}</span>
+        <div class="outlook-detail"><span><b>{next_aqi - aqi:+.0f}</b> vs current 24h</span>
+          <span><b>14 days</b> outlook available</span></div>
+        <div class="aqi-note">CAMS is blended with ML on overlapping days; later days use ML alone. Daily forecasts and rolling current values use different averaging windows.</div>
+      </section>
+    </div>""")
+    st.html('<div class="section-label">Pollutant monitor · 24-hour means</div>')
+    hourly = data["hourly"]
+    if city != "All cities":
+        hourly = hourly[hourly["city"] == city]
+    recent = hourly[(hourly["time"] <= data["now"]) & (hourly["time"] > data["now"] - pd.Timedelta(hours=24))]
+    pollutant_cards(current, recent.groupby("time")[DEFAULT_FEATURES].mean())
+    st.caption("All-cities values are unweighted averages of 26 cities, not a national population-weighted AQI. Gas pollutants are shown but excluded from the PM-only index.")
 
     worst, best = snap.loc[snap["AQI"].idxmax()], snap.loc[snap["AQI"].idxmin()]
-    tomorrow = outlook[outlook["date"] == data["today"] + pd.Timedelta(days=1)]
-    avg_now, avg_tmr = snap["AQI"].mean(), tomorrow["AQI"].mean()
-    unhealthy = int((snap["AQI"] > 150).sum())
     kpi_cards([
-        {"label": "National average AQI", "value": f"{avg_now:.0f}", "color": aqi_category(avg_now)[1],
-         "sub": f"{aqi_category(avg_now)[0]} · 24h mean"},
-        {"label": "Most polluted", "value": worst["city"], "color": worst["Color"], "sub": f"AQI {worst['AQI']:.0f} · {worst['Category']}"},
-        {"label": "Cleanest air", "value": best["city"], "color": best["Color"], "sub": f"AQI {best['AQI']:.0f} · {best['Category']}"},
-        {"label": "Tomorrow's outlook", "value": f"{avg_tmr:.0f}", "color": aqi_category(avg_tmr)[1],
-         "sub": f"{'▲' if avg_tmr > avg_now else '▼'} {abs(avg_tmr - avg_now):.0f} vs today · average AQI"},
-        {"label": "Unhealthy cities", "value": f"{unhealthy} / {len(snap)}", "color": "#ef4444", "sub": "AQI above 150 right now"},
+        {"label": "Cities covered", "value": str(len(snap)), "sub": "India · CAMS global model"},
+        {"label": "Highest particulate AQI", "value": worst["city"], "sub": f"AQI {worst['AQI']:.0f} · {worst['Category']}"},
+        {"label": "Lowest particulate AQI", "value": best["city"], "sub": f"AQI {best['AQI']:.0f} · {best['Category']}"},
+        {"label": "Unhealthy cities", "value": f"{int((snap['AQI'] > 150).sum())} / {len(snap)}", "sub": "Rolling 24h AQI above 150"},
     ])
-
-    left, right = st.columns([1.35, 1], gap="large")
-    with left:
-        st.markdown("### Live pollution map")
-        st.markdown(aqi_legend_html(), unsafe_allow_html=True)
-        st.plotly_chart(aqi_bubble_map(snap, height=520, zoom=3.7), config=PLOT_CONFIG, theme=None, key="dash_map")
-    with right:
-        st.markdown("### City ranking")
-        ranked = snap.sort_values("AQI")
-        fig = go.Figure(go.Bar(x=ranked["AQI"], y=ranked["city"], orientation="h", marker_color=ranked["Color"],
-                               text=ranked["AQI"].round(0).astype(int), textposition="outside", cliponaxis=False,
-                               customdata=ranked[["Category", "PM2.5"]],
-                               hovertemplate="<b>%{y}</b><br>AQI %{x:.0f} · %{customdata[0]}<br>PM2.5 %{customdata[1]:.0f} µg/m³<extra></extra>"))
-        style_fig(fig, height=560, legend=False, margin=dict(l=10, r=30, t=10, b=10))
-        fig.update_yaxes(tickfont=dict(size=11))
-        fig.update_xaxes(range=[0, float(ranked["AQI"].max()) * 1.15])
-        st.plotly_chart(fig, config=PLOT_CONFIG, theme=None, key="dash_rank")
-
-    _dashboard_trend(history, outlook, data["today"])
-
-    a, b = st.columns([1, 1.6], gap="large")
-    with a:
-        st.markdown("### Air quality mix")
-        mix = snap["Category"].value_counts().reindex(AQI_ORDER).dropna().reset_index()
-        mix.columns = ["Category", "Cities"]
-        fig = px.pie(mix, names="Category", values="Cities", hole=.62, color="Category", color_discrete_map=AQI_COLOR_MAP)
-        fig.update_traces(textinfo="value", textfont_size=14)
-        style_fig(fig, height=380, margin=dict(l=10, r=10, t=10, b=10))
-        fig.update_layout(legend=dict(orientation="v", y=.5, x=1.02))
-        st.plotly_chart(fig, config=PLOT_CONFIG, theme=None, key="dash_mix")
-    with b:
-        st.markdown("### Pollutant fingerprint")
-        heat = snap.set_index("city")[DEFAULT_FEATURES].sort_values("PM2.5", ascending=False)
-        rel = heat / heat.max()
-        fig = go.Figure(go.Heatmap(z=rel.values, x=DEFAULT_FEATURES, y=rel.index, colorscale="Turbo", customdata=heat.values,
-                                   hovertemplate="%{y} · %{x}: %{customdata:.2f}<extra></extra>",
-                                   colorbar=dict(title="Relative", thickness=10)))
-        style_fig(fig, height=380, legend=False, margin=dict(l=10, r=10, t=10, b=10))
-        fig.update_yaxes(tickfont=dict(size=10), autorange="reversed")
-        st.plotly_chart(fig, config=PLOT_CONFIG, theme=None, key="dash_heat")
-    st.caption("Values are 24-hour means from the Copernicus Atmosphere Monitoring Service (CAMS) model via Open-Meteo. "
-               "AQI uses the US EPA scale computed from PM2.5 and PM10.")
+    with st.container(border=True):
+        _dashboard_trend(history, outlook, data["today"], city)
+    left, right = st.columns([1.4, 1], gap="medium")
+    with left, st.container(border=True):
+        st.markdown("### Geographic intelligence")
+        st.caption("24-hour particulate AQI · drag to explore; open Map for time travel and Google Maps.")
+        st.plotly_chart(aqi_bubble_map(snap, height=400, zoom=3.4), config=PLOT_CONFIG, theme=None, key="dash_map")
+        st.html(aqi_legend_html())
+    with right, st.container(border=True):
+        st.markdown("### City watchlist")
+        ranked = snap.sort_values("AQI", ascending=False)
+        st.dataframe(ranked[["city", "AQI", "Category", "AQI_change"]].rename(
+            columns={"city": "City", "Category": "Status", "AQI_change": "24h change"}),
+            hide_index=True, height=440, width="stretch",
+            column_config={"AQI": st.column_config.ProgressColumn(format="%.0f", min_value=0, max_value=500),
+                           "24h change": st.column_config.NumberColumn(format="%+.0f")})
+    with st.container(border=True):
+        _dashboard_comparison(data)
+    f = data["forecaster"]
+    metrics = f["metrics"].iloc[0]
+    with st.container(border=True):
+        st.markdown("### Model & data transparency")
+        st.html(f"""<div class="trust-row">
+          <div><b>{'Demonstration clustering' if demo_mode else 'Saved clustering model'}</b>
+            StandardScaler + K-Means · {len(features)} inputs. Clusters describe patterns, not health categories.</div>
+          <div><b>1-day AQI MAE · {metrics['AQI MAE (model)']:.1f} points</b>
+            Persistence baseline: {metrics['AQI MAE (persistence)']:.1f} · ML-only backtest, not ensemble accuracy.</div>
+          <div><b>{f['holdout_days']}-day holdout · {f['n_train']:,} fitting rows</b>
+            {'Archived CAMS model estimates' if data['source'] == 'live' else 'Synthetic demo data only'}.
+            Historical errors do not guarantee future performance.</div>
+        </div>""")
+        st.caption("Open Forecast for horizon-specific metrics and Methodology for sources, units and limitations.")
 
 
 @st.fragment
@@ -1015,28 +979,31 @@ def _forecast_location(data):
         ml = data["ml"][data["ml"]["city"] == city]
         outlook = data["outlook"][data["outlook"]["city"] == city]
         hourly = data["hourly"][data["hourly"]["city"] == city]
-        return city, CITY_INDEX[city][2], CITY_INDEX[city][3], hist, cams, ml, outlook, hourly
+        return city, CITY_INDEX[city][2], CITY_INDEX[city][3], hist, cams, ml, outlook, hourly, data["now"]
     a, b, c = st.columns(3)
-    name = a.text_input("Place name", "My location", key="fc_name")
+    name = a.text_input("Place name", "My location", max_chars=80, key="fc_name").strip() or "My location"
     lat = b.number_input("Latitude", -90.0, 90.0, 28.5355, format="%.4f", key="fc_lat")
     lon = c.number_input("Longitude", -180.0, 180.0, 77.3910, format="%.4f", key="fc_lon")
     try:
-        hist, cams, ml, outlook, hourly = custom_location_forecast(name, round(lat, 4), round(lon, 4), data["today"], data["forecaster"])
-    except Exception as e:
-        st.error(f"Could not fetch data for these coordinates: {e}")
+        hist, cams, ml, outlook, hourly, local_now = custom_location_forecast(
+            name, round(lat, 4), round(lon, 4), data["forecaster"]["revision"], data["forecaster"])
+    except Exception:
+        st.error("Could not retrieve complete CAMS history for these coordinates. Try again later or select a supported city.")
         st.stop()
-    return name, lat, lon, hist, cams, ml, outlook, hourly
+    return name, lat, lon, hist, cams, ml, outlook, hourly, local_now
 
 
 @st.cache_data(ttl=1800, show_spinner="Forecasting this location...", max_entries=64)
-def custom_location_forecast(name, lat, lon, today, _forecaster):
-    frames, _ = fetch_open_meteo((lat,), (lon,))
+def custom_location_forecast(name, lat, lon, model_revision, _forecaster):
+    frames, offsets = fetch_open_meteo((lat,), (lon,))
+    local_now = (pd.Timestamp.utcnow().tz_localize(None) + pd.Timedelta(seconds=offsets[0])).floor("h")
+    today = local_now.normalize()
     hourly = frames[0].assign(city=name, lat=lat, lon=lon)
     hourly[DEFAULT_FEATURES] = hourly[DEFAULT_FEATURES].interpolate(limit_direction="both")
     daily = to_daily(hourly)
     hist, cams = daily[daily["date"] < today], daily[daily["date"] >= today]
     ml = forecast_series(_forecaster, [(name, hist)], MAX_HORIZON)
-    return hist, cams, ml, blend_outlook(ml, cams), hourly
+    return hist, cams, ml, blend_outlook(ml, cams), hourly, local_now
 
 
 def page_forecast():
@@ -1046,55 +1013,52 @@ def page_forecast():
                 "predicts the next two weeks for any city or coordinate.", data)
     top = st.columns([2.2, 1, 1])
     with top[0]:
-        name, lat, lon, hist, cams, ml, outlook, hourly = _forecast_location(data)
+        name, lat, lon, hist, cams, ml, outlook, hourly, local_now = _forecast_location(data)
     metric = top[1].selectbox("Show", ["AQI"] + DEFAULT_FEATURES, key="fc_metric")
     horizon = top[2].slider("Horizon (days)", 3, MAX_HORIZON, 7, key="fc_horizon")
     outlook, ml = outlook[outlook["horizon"] <= horizon], ml[ml["horizon"] <= horizon]
 
-    st.markdown(f"### {name} · next {min(horizon, 7)} days")
-    cards = outlook.head(7)
-    cols = st.columns(len(cards))
-    for col, (_, r) in zip(cols, cards.iterrows()):
-        cat, color, _ = aqi_category(r["AQI"])
-        label = "Today" if r["date"] == data["today"] else ("Tomorrow" if r["horizon"] == 2 else r["date"].strftime("%a %d"))
-        prof = f'<div class="fc-meta">{r["Profile"]}</div>' if "Profile" in r else ""
-        col.markdown(f"""<div class="fc-card"><div class="fc-day">{label}</div>
-            <div class="fc-aqi" style="color:{color}">{r['AQI']:.0f}</div>{badge(r['AQI'])}
-            <div class="fc-meta">PM2.5 {r['PM2.5']:.0f} · PM10 {r['PM10']:.0f}</div>{prof}</div>""", unsafe_allow_html=True)
+    st.subheader(f"{name} · daily outlook")
+    st.caption(f"Local timeline · {local_now:%d %b %H:%M}. First {min(horizon, 7)} days shown below; the chart and CSV include the selected horizon.")
+    forecast_cards(outlook, aqi_category)
 
-    st.markdown("### Observed history and prediction")
+    st.markdown("### Historical estimates & prediction")
     recent = hist.sort_values("date").tail(45)
     fig = go.Figure()
     lo_col, hi_col = (f"{metric}_lo", f"{metric}_hi")
     if lo_col in ml:
         fig.add_trace(go.Scatter(x=pd.concat([ml["date"], ml["date"][::-1]]), y=pd.concat([ml[hi_col], ml[lo_col][::-1]]),
-                                 fill="toself", fillcolor="rgba(167,139,250,.16)", line=dict(width=0), name="ML 80% range", hoverinfo="skip"))
-    fig.add_trace(go.Scatter(x=recent["date"], y=recent[metric], name="Observed", line=dict(color="#38bdf8", width=2.5)))
+                                 fill="toself", fillcolor="rgba(56,189,248,.10)", line=dict(width=0), name="ML indicative range", hoverinfo="skip"))
+    fig.add_trace(go.Scatter(x=recent["date"], y=recent[metric], name="Historical model estimates", line=dict(color="#38bdf8", width=2.5)))
     fig.add_trace(go.Scatter(x=ml["date"], y=ml[metric], name="AirScope ML", line=dict(color="#a78bfa", width=2, dash="dash")))
-    fig.add_trace(go.Scatter(x=cams["date"], y=cams[metric], name="CAMS model", line=dict(color="#fbbf24", width=2, dash="dot")))
+    shown_cams = cams[cams["date"].between(outlook["date"].min(), outlook["date"].max())]
+    fig.add_trace(go.Scatter(x=shown_cams["date"], y=shown_cams[metric], name="CAMS model", line=dict(color="#fbbf24", width=2, dash="dot")))
     fig.add_trace(go.Scatter(x=outlook["date"], y=outlook[metric], name="Ensemble outlook", mode="lines+markers",
-                             line=dict(color="#f472b6", width=3), marker=dict(size=7)))
+                             line=dict(color="#2dd4bf", width=3), marker=dict(size=5)))
     if metric == "AQI":
         for limit, cat, color, _ in AQI_CATEGORIES[:5]:
             fig.add_hline(y=limit, line=dict(color=color, width=1, dash="dot"), opacity=.45)
-    fig.add_vline(x=data["today"], line=dict(color="rgba(226,232,240,.4)", dash="dot"))
+    fig.add_vline(x=local_now.normalize(), line=dict(color="rgba(226,232,240,.4)", dash="dot"))
     style_fig(fig, height=440)
     fig.update_yaxes(title=metric + ("" if metric == "AQI" else f" ({UNITS[metric]})"))
     st.plotly_chart(fig, config=PLOT_CONFIG, theme=None, key="fc_main")
+    st.caption("Shading is a heuristic ML-only range (±1.28 × holdout residual SD × √h in log space), not a calibrated confidence interval or ensemble range.")
 
     a, b = st.columns([1.4, 1], gap="large")
     with a:
-        st.markdown("### Next 120 hours (hourly CAMS forecast)")
-        future = hourly[hourly["time"] > data["now"]].copy()
+        st.markdown("### Next hours · rolling particulate AQI")
+        rolling = hourly.sort_values("time").copy()
+        rolling[["PM2.5", "PM10"]] = rolling[["PM2.5", "PM10"]].rolling(24, min_periods=24).mean()
+        future = rolling[rolling["time"] > local_now].head(120).copy()
         if not future.empty:
             future["AQI (hourly PM)"] = [compute_aqi(x, y) for x, y in zip(future["PM2.5"], future["PM10"])]
             fig = go.Figure(go.Bar(x=future["time"], y=future["AQI (hourly PM)"],
                                    marker_color=[aqi_category(v)[1] for v in future["AQI (hourly PM)"]],
                                    hovertemplate="%{x|%a %d %b %H:%M}<br>AQI %{y:.0f}<extra></extra>"))
             style_fig(fig, height=330, legend=False)
-            fig.update_yaxes(title="Instantaneous AQI")
+            fig.update_yaxes(title="PM-only AQI · rolling 24h")
             st.plotly_chart(fig, config=PLOT_CONFIG, theme=None, key="fc_hourly")
-            st.caption("Hourly index from instantaneous PM2.5/PM10 values; official AQI uses 24-hour averages.")
+            st.caption("CAMS hourly output aggregated over the preceding 24 hours, including the forecast hour.")
     with b:
         st.markdown("### Where it happens")
         google_embed(lat, lon, zoom=10, height=330, query=None if name not in CITY_INDEX else f"{name}, India")
@@ -1104,8 +1068,7 @@ def page_forecast():
     show["date"] = show["date"].dt.strftime("%a %d %b")
     st.dataframe(show.rename(columns={"date": "Date", "source": "Method"}), hide_index=True, width="stretch",
                  column_config={p: st.column_config.NumberColumn(format="%.2f" if p == "CO" else "%.0f") for p in DEFAULT_FEATURES + ["AQI"]})
-    st.download_button("Download forecast as CSV", show.to_csv(index=False).encode("utf-8"),
-                       f"{name.lower().replace(' ', '_')}_forecast.csv", "text/csv")
+    st.download_button("Download forecast as CSV", show.to_csv(index=False).encode("utf-8"), "airscope_forecast.csv", "text/csv")
 
     st.markdown("### India outlook ranking")
     window = data["outlook"][data["outlook"]["horizon"] <= horizon]
@@ -1124,16 +1087,17 @@ def page_forecast():
         st.dataframe(f["metrics"], hide_index=True, width="stretch",
                      column_config={c: st.column_config.NumberColumn(format="%.1f") for c in f["metrics"].columns if "MAE" in c} |
                      {"AQI skill vs persistence": st.column_config.NumberColumn(format="percent")})
-        st.caption("For days 1-5 the outlook averages the ML forecast with the CAMS physical forecast; beyond day 5 only the ML model is used, "
-                   "so uncertainty grows with the horizon. Forecasts are indicative, not official advisories.")
+        st.caption("These evaluate ML alone against archived CAMS data (or synthetic data when offline), not monitoring stations or the ensemble. "
+                   "The outlook averages ML and CAMS on overlapping dates and uses ML alone afterward. Forecasts are indicative, not official advisories.")
 
 
 def page_patterns():
     data = get_data()
     page_header("Machine learning", "Pollution pattern explorer",
                 "K-Means clustering groups pollution readings into recurring atmospheric profiles. Explore them in 3D, 2D and PCA space.", data)
-    source = st.segmented_control("Data", ["Live city-days", "Synthetic demo"], default="Live city-days", key="pat_src") or "Live city-days"
-    if source == "Live city-days":
+    city_days = "CAMS city-days" if data["source"] == "live" else "Offline city-days"
+    source = st.segmented_control("Data", [city_days, "Synthetic demo"], default=city_days, key="pat_src") or city_days
+    if source == city_days:
         frame = data["history"].copy()
         hover = ["city", "date"]
     else:
@@ -1204,14 +1168,15 @@ def page_patterns():
 def page_analyze():
     data = get_data()
     page_header("Instant analysis", "Analyze a sample",
-                "Enter pollutant concentrations, or start from a city's live readings, to find its pattern profile and AQI.", data)
+                "Enter pollutant concentrations, or start from a city's model estimates, to find its pattern profile and AQI.", data)
+    st.caption("For comparable particulate AQI, enter 24-hour mean PM2.5 and PM10 in µg/m³. CO uses mg/m³. Cluster assignment is not a health classification.")
     presets = {
         "Lower readings": {"PM2.5": 18.0, "PM10": 42.0, "NO2": 12.0, "NOx": 20.0, "NH3": 10.0, "CO": 0.45, "SO2": 7.0, "O3": 22.0},
         "Balanced preview": {"PM2.5": 55.0, "PM10": 95.0, "NO2": 28.0, "NOx": 43.0, "NH3": 18.0, "CO": 0.9, "SO2": 13.0, "O3": 32.0},
         "Higher readings": {"PM2.5": 145.0, "PM10": 245.0, "NO2": 58.0, "NOx": 82.0, "NH3": 34.0, "CO": 2.3, "SO2": 30.0, "O3": 48.0},
     }
     for _, r in data["snap"].sort_values("AQI", ascending=False).iterrows():
-        presets[f"Live · {r['city']}"] = {p: round(float(r[p]), 2) for p in DEFAULT_FEATURES}
+        presets[f"{'CAMS' if data['source'] == 'live' else 'Demo'} · {r['city']}"] = {p: round(float(r[p]), 2) for p in DEFAULT_FEATURES}
     preset = st.selectbox("Start from", list(presets), index=1)
     with st.form("sample_form"):
         cols = st.columns(4)
@@ -1237,7 +1202,7 @@ def page_analyze():
     c1, c2, c3 = st.columns([1, 1, 1.4], gap="large")
     with c1:
         st.markdown(f"""<div class="result-card"><div class="result-eyebrow">PATTERN PROFILE</div>
-            <div class="result-title">Cluster {cid}</div><div class="result-pill">{cluster_name(cid)}</div>
+            <div class="result-title">Cluster {cid}</div><div class="result-pill">{escape(cluster_name(cid))}</div>
             <p class="result-desc">Assigned to the nearest K-Means centroid across {len(features)} standardized pollutant dimensions.</p></div>""",
                     unsafe_allow_html=True)
     with c2:
@@ -1270,17 +1235,25 @@ def page_batch():
     page_header("Bring your own data", "Batch analysis",
                 "Upload a CSV with the model's pollutant columns to cluster many observations at once. Include latitude/longitude to map them.")
     template = make_demo_data(30).round(2)
+    template = template.reindex(columns=features, fill_value=0.0)
     rng = np.random.default_rng(3)
     picks = rng.integers(0, len(CITIES), len(template))
     template["latitude"] = [CITIES[i][2] + rng.normal(0, .05) for i in picks]
     template["longitude"] = [CITIES[i][3] + rng.normal(0, .05) for i in picks]
     st.download_button("Download a sample CSV template", template.to_csv(index=False).encode("utf-8"), "airscope_template.csv", "text/csv")
     uploaded = st.file_uploader("Upload CSV dataset", type=["csv"])
+    st.caption("Up to 10 MB / 50,000 rows. Invalid pollutant rows are reported rather than silently discarded. Coordinates are optional.")
     if not uploaded:
         st.info("Required columns: " + ", ".join(features))
         return
     try:
-        raw = pd.read_csv(uploaded)
+        if uploaded.size > 10 * 1024 * 1024:
+            st.error("The file exceeds the 10 MB upload limit.")
+            return
+        raw = pd.read_csv(uploaded, nrows=50_001)
+        if len(raw) > 50_000:
+            st.error("The file exceeds the 50,000-row limit. Split it into smaller files.")
+            return
     except Exception as e:
         st.error(f"Could not read the file: {e}")
         return
@@ -1288,18 +1261,18 @@ def page_batch():
     if missing:
         st.error("Missing required columns: " + ", ".join(missing))
         return
-    numeric = raw[features].apply(pd.to_numeric, errors="coerce")
-    valid = numeric.notna().all(axis=1) & (numeric >= 0).all(axis=1)
-    clean = numeric.loc[valid]
-    if clean.empty:
-        st.error("No valid rows remain after removing missing and negative values.")
+    try:
+        clean = validate_measurements(raw, features)
+    except ValueError as e:
+        st.error(str(e))
         return
-    results = raw.loc[clean.index].copy()
+    results = raw.copy()
+    results[features] = clean
     results["Cluster"] = assign_clusters(clean)[0]
     results["Profile"] = [cluster_name(c) for c in results["Cluster"]]
     if "PM2.5" in results and "PM10" in results:
         results["AQI"] = [compute_aqi(a, b) for a, b in zip(results["PM2.5"], results["PM10"])]
-    st.success(f"Analyzed {len(clean):,} rows; skipped {len(raw) - len(clean):,} invalid rows.")
+    st.success(f"Analyzed {len(clean):,} rows. No pollutant rows were discarded.")
     st.dataframe(results.head(200), width="stretch")
     cols = {str(c).strip().lower(): c for c in results.columns}
     lat_c = next((cols[n] for n in ("latitude", "lat") if n in cols), None)
@@ -1308,6 +1281,11 @@ def page_batch():
         geo = results.assign(lat=pd.to_numeric(results[lat_c], errors="coerce"), lon=pd.to_numeric(results[lon_c], errors="coerce"))
         geo = geo.dropna(subset=["lat", "lon"])
         geo = geo[geo["lat"].between(-90, 90) & geo["lon"].between(-180, 180)]
+        if len(geo) < len(results):
+            st.warning(f"{len(results) - len(geo):,} rows have missing/invalid coordinates. They remain in the export but are omitted from the map.")
+        if len(geo) > 2000:
+            geo = geo.sample(2000, random_state=42)
+            st.caption("Map shows a reproducible 2,000-row sample; the CSV includes every analyzed row.")
         if not geo.empty:
             st.markdown("### Geographic cluster map")
             geo["Profile"] = [f"{c} · {cluster_name(c)}" for c in geo["Cluster"]]
@@ -1322,9 +1300,9 @@ def page_batch():
     a.plotly_chart(style_fig(px.bar(counts, x="Profile", y="Samples", color="Profile", color_discrete_sequence=CLUSTER_COLORS), height=400, legend=False),
                    config=PLOT_CONFIG, theme=None, key="batch_bar")
     if "PM2.5" in results and "PM10" in results:
-        b.plotly_chart(style_fig(px.scatter(results, x="PM2.5", y="PM10", color="Profile", color_discrete_sequence=CLUSTER_COLORS), height=400),
+        b.plotly_chart(style_fig(px.scatter(results.sample(min(len(results), 2000), random_state=42), x="PM2.5", y="PM10", color="Profile", color_discrete_sequence=CLUSTER_COLORS), height=400),
                        config=PLOT_CONFIG, theme=None, key="batch_scatter")
-    st.download_button("Download clustered dataset", results.to_csv(index=False).encode("utf-8"), "air_pollution_clustered_results.csv", "text/csv")
+    st.download_button("Download clustered dataset", csv_export(results), "air_pollution_clustered_results.csv", "text/csv")
 
 
 def page_about():
@@ -1332,10 +1310,10 @@ def page_about():
                 "Data sources, models and how to plug in your own trained artifacts and Google Maps key.")
     steps = [
         ("Live data", "Hourly PM2.5, PM10, NO2, NO, CO, SO2 and O3 for 26 Indian cities from the Copernicus Atmosphere Monitoring Service (CAMS) via the free Open-Meteo API. NOx = NO2 + NO; NH3 is estimated from PM2.5 where CAMS has no ammonia."),
-        ("AQI", "Daily US EPA Air Quality Index computed from 24-hour mean PM2.5 and PM10 using the 2024 breakpoints."),
+        ("AQI", "Particulate-only index using US EPA May 2024 breakpoints: truncate PM2.5 to 0.1 µg/m³ and PM10 to integer µg/m³, interpolate within discrete bands, round half up, take the larger index. Display is capped at 500. Not India's CPCB AQI or a full six-pollutant AQI."),
         ("Pattern discovery", "A StandardScaler + K-Means model assigns each reading to a learned atmospheric profile (your saved model is used automatically when present)."),
         ("Forecasting", "A ridge-regression model on log-scaled lagged pollutant levels (1, 2, 3 and 7 days, rolling means, seasonality and location) is trained across all cities and rolled forward recursively for 14 days."),
-        ("Ensemble outlook", "For days 1-5 the ML forecast is averaged with the CAMS physical forecast; beyond that the ML model extends the outlook with a widening 80% uncertainty band."),
+        ("Ensemble outlook", "ML is averaged with CAMS on overlapping forecast dates; later dates use ML alone. The shaded range belongs to ML alone: a heuristic based on holdout log residuals, not calibrated coverage. MAE and skill scores evaluate ML, not the ensemble, against archived CAMS estimates."),
         ("Maps", "Interactive maps run on MapLibre with CARTO and Esri tiles. Google Maps embeds work without a key; add a Maps JavaScript API key for full multi-city AQI markers on Google Maps."),
     ]
     st.markdown("".join(f'<div class="step"><div class="step-n">{i}</div><div><b>{t}</b><div>{d}</div></div></div>'
@@ -1354,47 +1332,58 @@ def page_about():
         st.markdown("Or as an environment variable: `GOOGLE_MAPS_API_KEY`.")
     st.markdown("### Current status")
     st.write(f"**Clustering model:** {'Synthetic demo model' if demo_mode else 'Loaded artifacts'} · **Features:** {', '.join(features)}")
+    st.markdown("### Sources & limitations")
+    st.markdown("- [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api) / "
+                "[Copernicus CAMS](https://atmosphere.copernicus.eu/) (model estimates, not ground-station readings).\n"
+                "- [US EPA AQI Technical Assistance Document, May 2024](https://www.airnow.gov/sites/default/files/2024-05/aqi-technical-assistance-document-may2024.pdf).\n"
+                "- NH3 is estimated where unavailable; NOx uses NO2 alone if NO is missing. These proxies affect clustering and forecasting.\n"
+                "- All-cities summaries are unweighted city averages, not population-weighted national statistics.\n"
+                "- Only complete 24-hour days are used for daily forecasting. Custom locations use their local timezone; the pooled model is trained on Indian cities and may generalize poorly elsewhere.\n"
+                "- Negative model skill means persistence performed better. Synthetic fallback metrics do not measure real-world accuracy.\n"
+                "- Open-Meteo's free endpoint is for non-commercial use. Review its [terms](https://open-meteo.com/en/terms) before commercial deployment.")
 
 
 # ============================================================================
 # App shell
 # ============================================================================
-with st.sidebar:
-    st.markdown("""<div class="brand"><div class="brand-logo">A</div>
-        <div><div class="brand-name">AirScope</div><div class="brand-sub">AIR QUALITY INTELLIGENCE</div></div></div>""",
-                unsafe_allow_html=True)
-    model_status = ("dot-warn", "Demo clustering model", "Synthetic in-memory K-Means") if demo_mode else \
-                   ("dot-ok", "Model ready", "Saved artifacts loaded")
-    st.markdown(f'<div class="status"><div class="dot {model_status[0]}"></div><div><b>{model_status[1]}</b><span>{model_status[2]}</span></div></div>',
-                unsafe_allow_html=True)
-    try:
-        _, _src, _now = load_city_hourly()
-        data_status = ("dot-ok", "Live data", f"CAMS · {_now:%d %b %H:%M} IST") if _src == "live" else \
-                      ("dot-warn", "Offline mode", "Synthetic data (API unreachable)")
-        st.markdown(f'<div class="status"><div class="dot {data_status[0]}"></div><div><b>{data_status[1]}</b><span>{data_status[2]}</span></div></div>',
-                    unsafe_allow_html=True)
-    except Exception:
-        pass
-    if st.button("Refresh data", icon=":material/refresh:", width="stretch"):
-        st.cache_data.clear()
-        get_data.clear()
-        st.rerun()
-    st.markdown("---")
-    st.text_input("Google Maps API key", type="password", key="gmaps_key",
-                  help="Optional. Enables multi-city AQI markers on Google Maps. Stored only for this browser session.",
-                  placeholder="Using env/secrets" if google_maps_key() else "Paste key (optional)")
-    st.caption("Exploratory tool. Not an official air-quality advisory.")
-
 pages = [
-    st.Page(page_dashboard, title="Dashboard", icon=":material/space_dashboard:", url_path="dashboard", default=True),
+    st.Page(page_dashboard, title="Overview", icon=":material/space_dashboard:", url_path="dashboard", default=True),
     st.Page(page_map, title="Map", icon=":material/map:", url_path="map"),
     st.Page(page_forecast, title="Forecast", icon=":material/insights:", url_path="forecast"),
     st.Page(page_patterns, title="Patterns", icon=":material/scatter_plot:", url_path="patterns"),
     st.Page(page_analyze, title="Analyze", icon=":material/science:", url_path="analyze"),
     st.Page(page_batch, title="Batch upload", icon=":material/upload_file:", url_path="batch"),
-    st.Page(page_about, title="About", icon=":material/info:", url_path="about"),
+    st.Page(page_about, title="Methodology", icon=":material/info:", url_path="about"),
 ]
-st.navigation(pages, position="top").run()
+navigation = st.navigation(pages, position="hidden")
+with st.sidebar:
+    st.html("""<div class="brand"><div class="brand-mark">A</div>
+        <div><div class="brand-name">AirScope<span style="color:#38bdf8">.</span></div>
+        <div class="brand-sub">Environmental intelligence</div></div></div>""")
+    st.html('<div class="nav-label">INTELLIGENCE</div>')
+    for page in pages[:4]:
+        st.page_link(page)
+    st.html('<div class="nav-label">WORKSPACE</div>')
+    for page in pages[4:]:
+        st.page_link(page)
+    st.markdown("---")
+    st.html(f"""<div class="side-status"><b>{'Demo clustering model' if demo_mode else 'Clustering model ready'}</b>
+        <small>{'Synthetic K-Means · add your artifacts' if demo_mode else 'Trusted saved artifacts loaded'}</small></div>""")
+    if artifact_error:
+        st.warning(artifact_error)
+    with st.expander("Connection & settings", icon=":material/settings:"):
+        st.caption("CAMS refreshes every 30 minutes. Refresh clears shared data caches for all visitors.")
+        if st.button("Refresh data", icon=":material/refresh:", width="stretch"):
+            st.cache_data.clear()
+            get_data.clear()
+            train_forecaster.clear()
+            st.rerun()
+        st.text_input("Google Maps API key", type="password", key="gmaps_key",
+                      help="Browser-visible key. Restrict its HTTP referrers and API scope in Google Cloud.",
+                      placeholder="Using env/secrets" if google_maps_key() else "Optional browser key")
+    st.caption("CAMS / Open-Meteo · Model estimates\n\nExploratory tool, not an official advisory.")
+
+navigation.run()
 
 st.markdown("""<div class="app-footer"><span><b>AirScope</b> · Air quality intelligence for India</span>
 <span>Data: Copernicus CAMS via Open-Meteo · Forecasts are indicative, not official advisories</span></div>""", unsafe_allow_html=True)
