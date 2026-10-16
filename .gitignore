@@ -3,5 +3,5 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
-.streamlit/secrets.toml
+**/.streamlit/secrets.toml
 air_pollution_dashboard/models/

@@ -22,6 +22,8 @@ html, body, [data-testid="stAppViewContainer"] {
 [data-testid="stToolbar"] { right: 1rem; }
 #MainMenu, footer { visibility: hidden; }
 .block-container { max-width: 1600px; padding: 2rem 2.3rem 2.5rem; }
+/* Keep content below Streamlit's fixed header even when responsive padding changes. */
+[data-testid="stMain"] .block-container { padding-top: 5rem; }
 h1, h2, h3, h4 { font-family: "Space Grotesk", system-ui, sans-serif !important; letter-spacing: -.025em; }
 h3 { font-size: 1.08rem !important; margin: .1rem 0 .5rem !important; padding: 0 !important; }
 p, li, label { line-height: 1.55; }
