@@ -827,6 +827,7 @@ def _dashboard_comparison(data):
 
 
 def page_dashboard():
+    st.html('<div class="as-page-marker as-overview" aria-hidden="true"></div>')
     data = get_data()
     snap, outlook, history = data["snap"], data["outlook"], data["history"]
 
@@ -982,6 +983,7 @@ def _map_explorer(data):
 
 
 def page_map():
+    st.html('<div class="as-page-marker as-map" aria-hidden="true"></div>')
     data = get_data()
     outlook = data["outlook"]
     page_header("Geospatial view", "Pollution map",
@@ -1035,6 +1037,7 @@ def custom_location_forecast(name, lat, lon, model_revision, _forecaster):
 
 
 def page_forecast():
+    st.html('<div class="as-page-marker as-forecast" aria-hidden="true"></div>')
     data = get_data()
     page_header("Future predicted view", "Air quality forecast",
                 "A machine-learning model trained on 3 months of daily pollutant levels, ensembled with the CAMS atmospheric model, "
@@ -1120,6 +1123,7 @@ def page_forecast():
 
 
 def page_patterns():
+    st.html('<div class="as-page-marker as-patterns" aria-hidden="true"></div>')
     data = get_data()
     page_header("Machine learning", "Pollution pattern explorer",
                 "K-Means clustering groups pollution readings into recurring atmospheric profiles. Explore them in 3D, 2D and PCA space.", data)
