@@ -565,7 +565,7 @@ def page_header(kicker, title, subtitle, data=None):
         else:
             provenance = '<span style="color:#fbbf24">Offline · synthetic demonstration data</span>'
     st.html(f"""
-    <section class="hero">
+    <section class="hero page-hero" data-view="{escape(kicker.lower().replace(chr(32), '-'))}">
       <div class="eyebrow">AirScope / {escape(kicker)}</div>
       <h1>{escape(title)}</h1><p class="lead">{escape(subtitle)}</p>
       <div class="hero-signal" aria-hidden="true"><span>LIVE AIR DATA</span><span>ML FORECAST</span><span>PATTERN DISCOVERY</span></div>
