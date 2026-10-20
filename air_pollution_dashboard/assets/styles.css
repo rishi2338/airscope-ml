@@ -1699,3 +1699,92 @@ button, [data-testid="stButton"] button {
   .hero::after { right: -7%; width: 205px; opacity: .55; }
   .hero h1, .hero .lead { padding-right: 0 !important; }
 }
+
+
+/* =========================================================
+   PAGE WORLDS — each AirScope category gets its own visual identity
+   ========================================================= */
+.page-hero {
+  min-height: 310px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background-size: cover, cover, cover !important;
+  background-position: center, center, center !important;
+  transition: background-position .6s ease, border-color .35s ease;
+}
+.page-hero::after {
+  width: clamp(170px, 24vw, 310px);
+  right: 6%;
+  border-color: rgba(75, 238, 244, .5);
+  box-shadow: 0 0 30px rgba(44, 220, 245, .18), inset 0 0 30px rgba(44, 220, 245, .08);
+}
+.page-hero::before {
+  right: 8%;
+  width: clamp(150px, 21vw, 265px);
+}
+.page-hero h1 { max-width: 700px; animation: as-title-arrive .8s cubic-bezier(.2,.8,.2,1) both; }
+.page-hero .eyebrow { animation: as-title-arrive .55s ease both; }
+.page-hero .lead { animation: as-title-arrive .9s .08s ease both; }
+.page-hero .hero-signal { animation: as-title-arrive 1s .14s ease both; }
+.page-hero[data-view="geospatial-view"] {
+  background:
+    linear-gradient(90deg, rgba(2,13,27,.98) 0%, rgba(2,13,27,.83) 48%, rgba(2,13,27,.28) 100%),
+    url("https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=1800&q=85") center 45% / cover no-repeat,
+    #03111b !important;
+}
+.page-hero[data-view="future-predicted-view"] {
+  background:
+    linear-gradient(90deg, rgba(3,12,29,.98) 0%, rgba(3,12,29,.82) 48%, rgba(3,12,29,.25) 100%),
+    url("https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=1800&q=85") center 50% / cover no-repeat,
+    #03111b !important;
+}
+.page-hero[data-view*="pattern"], .page-hero[data-view*="cluster"] {
+  background:
+    linear-gradient(90deg, rgba(3,14,28,.98) 0%, rgba(3,14,28,.82) 48%, rgba(3,14,28,.25) 100%),
+    url("https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1800&q=85") center / cover no-repeat,
+    #03111b !important;
+}
+.page-hero[data-view*="method"], .page-hero[data-view*="model"] {
+  background:
+    linear-gradient(90deg, rgba(3,14,28,.98) 0%, rgba(3,14,28,.82) 48%, rgba(3,14,28,.25) 100%),
+    url("https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1800&q=85") center / cover no-repeat,
+    #03111b !important;
+}
+@keyframes as-title-arrive {
+  from { opacity: 0; transform: translate3d(0, 13px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+/* richer image-led section headers, while leaving all measurements and ML outputs intact */
+.observatory-section-head {
+  margin-top: 2.2rem;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid rgba(53,232,224,.16);
+  border-radius: 14px;
+  background: linear-gradient(100deg, rgba(8,40,54,.78), rgba(3,17,27,.32));
+  box-shadow: inset 3px 0 0 rgba(53,232,224,.55);
+}
+.observatory-section-head h2 { letter-spacing: -.035em; }
+.observatory-hero {
+  border: 1px solid rgba(53,232,224,.2);
+  box-shadow: 0 22px 70px rgba(0,0,0,.24), inset 0 0 70px rgba(53,232,224,.035);
+  animation: as-title-arrive .75s ease both;
+}
+.observatory-outlook { position: relative; overflow: hidden; }
+.observatory-outlook::after {
+  content: "";
+  position: absolute; width: 190px; height: 190px; right: -90px; bottom: -100px;
+  border-radius: 50%; border: 1px solid rgba(53,232,224,.26);
+  box-shadow: 0 0 0 18px rgba(53,232,224,.025), 0 0 0 38px rgba(53,232,224,.02);
+  pointer-events: none;
+}
+.signal-item { transition: background .25s ease, transform .25s ease; }
+.signal-item:hover { transform: translateY(-2px); }
+@media(max-width:760px) {
+  .page-hero { min-height: 260px; }
+  .page-hero::before, .page-hero::after { opacity: .24; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .page-hero h1, .page-hero .eyebrow, .page-hero .lead, .page-hero .hero-signal,
+  .observatory-hero { animation: none !important; }
+}
