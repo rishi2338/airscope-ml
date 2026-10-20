@@ -1788,3 +1788,89 @@ button, [data-testid="stButton"] button {
   .page-hero h1, .page-hero .eyebrow, .page-hero .lead, .page-hero .hero-signal,
   .observatory-hero { animation: none !important; }
 }
+
+
+
+/* =========================================================
+   AIRSCOPE PAGE WORLDS — four distinct layouts and motion systems
+   ========================================================= */
+.as-page-marker { width:0; height:0; overflow:hidden; }
+@keyframes as-world-arrive { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+@keyframes as-map-sweep { 0% { transform:translateX(-140%); opacity:0; } 20% { opacity:.65; } 100% { transform:translateX(440%); opacity:0; } }
+@keyframes as-lab-draw { from { clip-path:inset(0 100% 0 0); } to { clip-path:inset(0 0 0 0); } }
+@keyframes as-discovery-pulse { 0%,100% { border-color:rgba(183,239,114,.18); } 50% { border-color:rgba(183,239,114,.52); } }
+
+/* OVERVIEW — editorial observatory: oversized reading and contrasting forecast rail. */
+body:has(.as-overview) .observatory-hero {
+  grid-template-columns:minmax(0,1.65fr) minmax(250px,.7fr); min-height:360px;
+  border-radius:4px 32px 4px 32px; border-color:rgba(183,239,114,.3);
+  background:radial-gradient(ellipse at 12% 0%,rgba(85,148,103,.24),transparent 52%),linear-gradient(125deg,#10271e,#091914 72%);
+  animation:as-world-arrive .7s cubic-bezier(.2,.7,.2,1) both;
+}
+body:has(.as-overview) .observatory-copy { padding:clamp(1.5rem,4vw,4rem); }
+body:has(.as-overview) .observatory-score { font-size:clamp(5.8rem,11vw,10rem); }
+body:has(.as-overview) .observatory-outlook { justify-content:flex-end; min-height:100%; background:linear-gradient(155deg,#c8ff8d,#9cdb64); }
+body:has(.as-overview) .signal-strip { border:0; border-top:1px solid rgba(183,239,114,.42); border-bottom:1px solid rgba(183,239,114,.18); background:rgba(10,25,18,.45); }
+body:has(.as-overview) .signal-item { padding:1.4rem 1.2rem; }
+body:has(.as-overview) .signal-item strong { font-size:clamp(1.4rem,2.6vw,2.2rem); }
+body:has(.as-overview) .observatory-section-head { animation:as-world-arrive .7s ease both; }
+
+/* MAP — geospatial command centre: cyan instrument panels and map-first canvas. */
+body:has(.as-map) .page-hero {
+  position:relative; padding:1.4rem 1.6rem; margin:.7rem 0 1.3rem;
+  border:1px solid rgba(71,196,220,.3); border-radius:4px 4px 22px 4px;
+  background:linear-gradient(110deg,rgba(6,24,36,.98),rgba(6,17,27,.78));
+  animation:as-world-arrive .55s ease both;
+}
+body:has(.as-map) .page-hero:before { content:""; position:absolute; inset:0 auto 0 0; width:3px; background:#4bd9e8; box-shadow:0 0 22px rgba(75,217,232,.6); }
+body:has(.as-map) [data-testid="stSelectbox"], body:has(.as-map) [data-testid="stSegmentedControl"], body:has(.as-map) [data-testid="stSlider"] {
+  padding:.65rem .75rem; border:1px solid rgba(71,196,220,.22); border-radius:8px; background:rgba(7,23,34,.72);
+}
+body:has(.as-map) .city-card { border-radius:5px 18px 5px 5px; border-color:rgba(71,196,220,.32); background:linear-gradient(160deg,#092230,#07121d); }
+body:has(.as-map) [data-testid="stPlotlyChart"] { position:relative; overflow:hidden; border:1px solid rgba(71,196,220,.22); border-radius:4px 18px 4px 4px; background:rgba(5,17,28,.5); }
+body:has(.as-map) [data-testid="stPlotlyChart"]:after { content:""; position:absolute; top:0; bottom:0; left:0; width:18%; pointer-events:none; background:linear-gradient(90deg,transparent,rgba(71,196,220,.1),transparent); animation:as-map-sweep 8s ease-in-out infinite; }
+
+/* FORECAST — prediction lab: violet technical stage and time-horizon rhythm. */
+body:has(.as-forecast) .page-hero {
+  position:relative; padding:1.6rem 1.8rem; margin:.7rem 0 1.3rem; overflow:hidden;
+  border:1px solid rgba(167,139,250,.32); border-radius:18px 4px 18px 4px;
+  background:radial-gradient(ellipse at 95% 15%,rgba(124,90,210,.2),transparent 42%),linear-gradient(120deg,#10142b,#07111d);
+  animation:as-world-arrive .7s cubic-bezier(.16,.8,.25,1) both;
+}
+body:has(.as-forecast) .page-hero:after { content:"HISTORICAL  /  NOW  /  OUTLOOK"; display:block; margin-top:1rem; color:rgba(191,178,255,.7); font:600 .62rem "Space Grotesk",sans-serif; letter-spacing:.17em; }
+body:has(.as-forecast) [data-testid="stPlotlyChart"] { padding:.5rem; border:1px solid rgba(167,139,250,.24); border-radius:16px 4px 16px 4px; background:linear-gradient(145deg,rgba(18,21,44,.68),rgba(7,17,29,.3)); animation:as-lab-draw .9s ease both; }
+body:has(.as-forecast) [data-testid="stSlider"], body:has(.as-forecast) [data-testid="stSelectbox"], body:has(.as-forecast) [data-testid="stSegmentedControl"] { padding:.6rem .75rem; border-bottom:1px solid rgba(167,139,250,.36); background:rgba(17,20,42,.45); }
+body:has(.as-forecast) .fc-card { border-radius:4px 12px 4px 12px; border-top:2px solid rgba(167,139,250,.58); background:linear-gradient(180deg,rgba(32,28,61,.9),rgba(10,19,31,.96)); }
+body:has(.as-forecast) .fc-card:nth-child(even) { transform:translateY(5px); }
+body:has(.as-forecast) .fc-card:hover { transform:translateY(-3px); }
+
+/* PATTERNS — discovery studio: grid-backed research canvas and sharp geometry. */
+body:has(.as-patterns) .page-hero {
+  padding:1.8rem 2rem; margin:.7rem 0 1.4rem; border:1px dashed rgba(183,239,114,.38); border-radius:2px;
+  background:radial-gradient(circle at 82% 45%,rgba(167,139,250,.17),transparent 25%),radial-gradient(circle at 96% 15%,rgba(183,239,114,.13),transparent 30%),#0b1715;
+  animation:as-world-arrive .65s steps(10,end) both;
+}
+body:has(.as-patterns) .page-hero:after { content:"FEATURE SPACE  ·  CLUSTERS  ·  CORRELATIONS"; display:block; margin-top:1rem; color:rgba(183,239,114,.68); font:600 .61rem "Space Grotesk",sans-serif; letter-spacing:.15em; }
+body:has(.as-patterns) .kpi-grid { grid-template-columns:1.2fr 1fr 1fr 1fr; gap:8px; }
+body:has(.as-patterns) .kpi { border-radius:2px; border-color:rgba(183,239,114,.22); box-shadow:none; background:linear-gradient(135deg,rgba(23,36,31,.96),rgba(11,18,24,.96)); animation:as-discovery-pulse 6s ease-in-out infinite; }
+body:has(.as-patterns) .kpi:nth-child(2) { border-top:2px solid #a78bfa; }
+body:has(.as-patterns) .kpi:nth-child(3) { border-top:2px solid #67e8f9; }
+body:has(.as-patterns) .kpi:nth-child(4) { border-top:2px solid #b7ef72; }
+body:has(.as-patterns) [data-testid="stPlotlyChart"] {
+  border:1px solid rgba(183,239,114,.22); border-radius:2px;
+  background:linear-gradient(rgba(183,239,114,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(183,239,114,.025) 1px,transparent 1px),rgba(8,18,16,.55);
+  background-size:28px 28px;
+}
+body:has(.as-patterns) [data-testid="stSelectbox"], body:has(.as-patterns) [data-testid="stSegmentedControl"], body:has(.as-patterns) [data-testid="stSlider"] { padding:.65rem; border:1px solid rgba(183,239,114,.2); border-radius:2px; }
+
+@media (max-width:850px) {
+  body:has(.as-overview) .observatory-hero { grid-template-columns:1fr; }
+  body:has(.as-overview) .observatory-copy { padding:1.4rem; }
+  body:has(.as-patterns) .kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  body:has(.as-forecast) .fc-card:nth-child(even) { transform:none; }
+}
+@media (prefers-reduced-motion:reduce) {
+  body:has(.as-overview) *, body:has(.as-map) *, body:has(.as-forecast) *, body:has(.as-patterns) * {
+    animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important;
+  }
+}
