@@ -36,9 +36,15 @@ st.set_page_config(
 )
 
 # ============================================================================
-# Design system
+# Design system — premium AirScope theme
 # ============================================================================
 configure_style()
+
+# Load the shared stylesheet at the app entry point so the premium theme is
+# applied consistently even if the UI helper's stylesheet path changes.
+PREMIUM_THEME_PATH = APP_DIR / "assets" / "styles.css"
+if PREMIUM_THEME_PATH.is_file():
+    st.html(f"<style>{PREMIUM_THEME_PATH.read_text(encoding='utf-8')}</style>")
 
 # ============================================================================
 # Constants
