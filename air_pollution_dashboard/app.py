@@ -29,7 +29,7 @@ FEATURES_PATH = MODEL_DIR / "feature_columns.pkl"
 PROFILES_PATH = MODEL_DIR / "cluster_profiles.pkl"
 
 st.set_page_config(
-    page_title="AirScope | Air Quality Intelligence",
+    page_title="AirScope 2 | Environmental Intelligence",
     page_icon=":material/air:",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -1364,7 +1364,7 @@ pages = [
 navigation = st.navigation(pages, position="hidden")
 with st.sidebar:
     st.html("""<div class="brand"><div class="brand-mark">A</div>
-        <div><div class="brand-name">AirScope<span style="color:#38bdf8">.</span></div>
+        <div><div class="brand-name">AirScope<span style="color:#b5e86f"> 2</span></div>
         <div class="brand-sub">Environmental intelligence</div></div></div>""")
     st.html('<div class="nav-label">INTELLIGENCE</div>')
     for page in pages[:4]:
