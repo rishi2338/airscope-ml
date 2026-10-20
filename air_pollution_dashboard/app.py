@@ -828,91 +828,112 @@ def _dashboard_comparison(data):
 def page_dashboard():
     data = get_data()
     snap, outlook, history = data["snap"], data["outlook"], data["history"]
-    page_header("Environmental intelligence", "Air quality, in perspective.",
-                "Track the present. Understand the patterns. Look ahead with transparent, model-driven intelligence.", data)
-    top = st.columns([2, 1])
-    city = top[0].selectbox("Monitoring area", ["All cities"] + list(CITY_INDEX), key="overview_city")
-    top[1].download_button("Export current readings", snap.drop(columns="Color").round(2).to_csv(index=False).encode(),
-                           "airscope_current_readings.csv", "text/csv", icon=":material/download:")
+
+    # New editorial observatory layout: headline -> live signal -> trend -> geography.
+    page_header("AIR QUALITY OBSERVATORY", "See the air differently.",
+                "A live view of India's modelled air quality, the changes behind it, and the outlook ahead.", data)
+
+    left, right = st.columns([1.65, 1], gap="large")
+    with left:
+        city = st.selectbox("Explore a location", ["All cities"] + list(CITY_INDEX), key="overview_city",
+                            label_visibility="visible")
+    with right:
+        st.download_button("Export readings", snap.drop(columns="Color").round(2).to_csv(index=False).encode(),
+                           "airscope_current_readings.csv", "text/csv", icon=":material/download:", width="stretch")
+
     selected = snap if city == "All cities" else snap[snap["city"] == city]
-    scope = "26-city average" if city == "All cities" else city
+    scope = "India · 26-city view" if city == "All cities" else f"{city} · {CITY_INDEX[city][1]}"
     current = selected[DEFAULT_FEATURES].mean()
     aqi = float(round(selected["AQI"].mean()))
     category, color, advice = aqi_category(aqi)
-    delta = selected["AQI_change"].mean()
+    delta = float(selected["AQI_change"].mean())
     future = outlook if city == "All cities" else outlook[outlook["city"] == city]
     tomorrow = future[future["date"] == data["today"] + pd.Timedelta(days=1)]
-    next_aqi = tomorrow["AQI"].mean()
+    next_aqi = float(tomorrow["AQI"].mean()) if not tomorrow.empty else aqi
     next_category, next_color, _ = aqi_category(next_aqi)
     method = "ML + CAMS" if data["source"] == "live" else "Synthetic demo"
     scale = "".join(f'<span style="background:{c}"></span>' for _, _, c, _ in AQI_CATEGORIES)
+
     st.html(f"""
-    <div class="summary-grid">
-      <section class="aqi-panel">
-        <div class="aqi-heading"><span>{escape(scope)} · rolling 24 hours</span><span>PM-only AQI</span></div>
-        <div class="aqi-reading"><div><span class="aqi-number" style="color:{color}">{aqi:.0f}</span><span class="aqi-unit">/ 500</span></div>
-          <div>{badge(aqi)}<div class="aqi-note">{delta:+.0f} points vs previous 24h</div></div></div>
-        <div class="aqi-note">{escape(advice)}</div>
-        <div class="aqi-scale">{scale}</div><div class="scale-labels"><span>0 · Good</span><span>500 · Hazardous</span></div>
-      </section>
-      <section class="outlook-panel">
-        <div class="aqi-heading"><span>LOOKING AHEAD</span><span>{method}</span></div>
-        <h3>Tomorrow's air quality</h3>
-        <span class="outlook-value" style="color:{next_color}">{next_aqi:.0f}</span>
-        <span class="aqi-unit">AQI · {escape(next_category)}</span>
-        <div class="outlook-detail"><span><b>{next_aqi - aqi:+.0f}</b> vs current 24h</span>
-          <span><b>14 days</b> outlook available</span></div>
-        <div class="aqi-note">CAMS is blended with ML on overlapping days; later days use ML alone. Daily forecasts and rolling current values use different averaging windows.</div>
-      </section>
-    </div>""")
-    st.html('<div class="section-label">Pollutant monitor · 24-hour means</div>')
+    <section class="observatory-hero">
+      <div class="observatory-copy">
+        <div class="observatory-kicker"><span class="live-indicator"></span> CURRENT CONDITIONS <span class="observatory-sep">/</span> {escape(scope.upper())}</div>
+        <div class="observatory-mainline">
+          <div class="observatory-score" style="color:{color}">{aqi:.0f}</div>
+          <div class="observatory-score-meta"><span class="observatory-unit">PARTICULATE AQI <span class="observatory-muted">/ 500</span></span>
+            {badge(aqi)}<div class="observatory-delta">{delta:+.0f} points over the previous 24 hours</div></div>
+        </div>
+        <div class="observatory-advice">{escape(advice)}</div>
+        <div class="observatory-scale">{scale}</div>
+        <div class="observatory-scale-labels"><span>0 · Good</span><span>500 · Hazardous</span></div>
+      </div>
+      <div class="observatory-outlook">
+        <div class="observatory-kicker">THE NEXT 24 HOURS</div>
+        <div class="outlook-date">Tomorrow</div>
+        <div class="observatory-next" style="color:{next_color}">{next_aqi:.0f}<span> AQI</span></div>
+        <div class="outlook-status">{escape(next_category)}</div>
+        <div class="outlook-change">{next_aqi - aqi:+.0f} <span>vs. current reading</span></div>
+        <div class="outlook-foot">Forecast blend · {method}<br/>Up to 14 days available</div>
+      </div>
+    </section>
+    """)
+
+    worst, best = snap.loc[snap["AQI"].idxmax()], snap.loc[snap["AQI"].idxmin()]
+    f = data["forecaster"]
+    metrics = f["metrics"].iloc[0]
+    st.html(f"""
+    <div class="signal-strip">
+      <div class="signal-item"><span class="signal-label">CITIES IN VIEW</span><strong>{len(snap):02d}</strong><small>Across India</small></div>
+      <div class="signal-item"><span class="signal-label">HIGHEST READING</span><strong>{escape(str(worst['city']))}</strong><small>AQI {worst['AQI']:.0f} · {escape(str(worst['Category']))}</small></div>
+      <div class="signal-item"><span class="signal-label">LOWEST READING</span><strong>{escape(str(best['city']))}</strong><small>AQI {best['AQI']:.0f} · {escape(str(best['Category']))}</small></div>
+      <div class="signal-item"><span class="signal-label">ABOVE AQI 150</span><strong>{int((snap['AQI'] > 150).sum()):02d}<span class="signal-total"> / {len(snap)}</span></strong><small>City readings</small></div>
+    </div>
+    """)
+
+    st.markdown('<div class="observatory-section-head"><div><span class="section-index">01</span><h2>Signals over time</h2></div><span class="section-aside">DAILY ESTIMATES · HISTORICAL + OUTLOOK</span></div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        _dashboard_trend(history, outlook, data["today"], city)
+
+    st.markdown('<div class="observatory-section-head"><div><span class="section-index">02</span><h2>Where the air changes</h2></div><span class="section-aside">GEOGRAPHIC DISTRIBUTION</span></div>', unsafe_allow_html=True)
+    map_col, list_col = st.columns([1.35, 1], gap="large")
+    with map_col:
+        with st.container(border=True):
+            st.caption("Modelled 24-hour particulate AQI across the selected city set.")
+            st.plotly_chart(aqi_bubble_map(selected if city != "All cities" else snap, height=460, zoom=3.4), config=PLOT_CONFIG, theme=None, key="dash_map")
+            st.html(aqi_legend_html())
+            st.page_link(next(p for p in pages if p.title == "Map"), label="Open full map explorer", icon=":material/arrow_outward:")
+    with list_col:
+        with st.container(border=True):
+            st.markdown("### City watch")
+            st.caption("Ranked from highest to lowest particulate AQI.")
+            ranked = snap.sort_values("AQI", ascending=False)
+            st.dataframe(ranked[["city", "AQI", "Category", "AQI_change"]].rename(
+                columns={"city": "City", "Category": "Category", "AQI_change": "24h change"}),
+                hide_index=True, height=440, width="stretch",
+                column_config={"AQI": st.column_config.ProgressColumn(format="%.0f", min_value=0, max_value=500),
+                               "24h change": st.column_config.NumberColumn(format="%+.0f")})
+            st.page_link(next(p for p in pages if p.title == "Forecast"), label="Explore the 14-day forecast", icon=":material/trending_up:")
+
+    st.markdown('<div class="observatory-section-head"><div><span class="section-index">03</span><h2>Pollutant fingerprint</h2></div><span class="section-aside">24-HOUR MEANS · LIVE MODEL ESTIMATES</span></div>', unsafe_allow_html=True)
     hourly = data["hourly"]
     if city != "All cities":
         hourly = hourly[hourly["city"] == city]
     recent = hourly[(hourly["time"] <= data["now"]) & (hourly["time"] > data["now"] - pd.Timedelta(hours=24))]
-    pollutant_cards(current, recent.groupby("time")[DEFAULT_FEATURES].mean())
-    st.caption("All-cities values are unweighted averages of 26 cities, not a national population-weighted AQI. Gas pollutants are shown but excluded from the PM-only index.")
+    with st.container(border=True):
+        pollutant_cards(current, recent.groupby("time")[DEFAULT_FEATURES].mean())
+    st.caption("City averages are unweighted, not population-weighted national statistics. This particulate-only AQI is not the official CPCB AQI. Gas pollutants are shown separately and are excluded from this index.")
 
-    worst, best = snap.loc[snap["AQI"].idxmax()], snap.loc[snap["AQI"].idxmin()]
-    kpi_cards([
-        {"label": "Cities covered", "value": str(len(snap)), "sub": "India · CAMS global model"},
-        {"label": "Highest particulate AQI", "value": worst["city"], "sub": f"AQI {worst['AQI']:.0f} · {worst['Category']}"},
-        {"label": "Lowest particulate AQI", "value": best["city"], "sub": f"AQI {best['AQI']:.0f} · {best['Category']}"},
-        {"label": "Unhealthy cities", "value": f"{int((snap['AQI'] > 150).sum())} / {len(snap)}", "sub": "Rolling 24h AQI above 150"},
-    ])
-    with st.container(border=True):
-        _dashboard_trend(history, outlook, data["today"], city)
-    left, right = st.columns([1.4, 1], gap="medium")
-    with left, st.container(border=True):
-        st.markdown("### Geographic intelligence")
-        st.caption("24-hour particulate AQI · drag to explore; open Map for time travel and Google Maps.")
-        st.plotly_chart(aqi_bubble_map(snap, height=400, zoom=3.4), config=PLOT_CONFIG, theme=None, key="dash_map")
-        st.html(aqi_legend_html())
-    with right, st.container(border=True):
-        st.markdown("### City watchlist")
-        ranked = snap.sort_values("AQI", ascending=False)
-        st.dataframe(ranked[["city", "AQI", "Category", "AQI_change"]].rename(
-            columns={"city": "City", "Category": "Status", "AQI_change": "24h change"}),
-            hide_index=True, height=440, width="stretch",
-            column_config={"AQI": st.column_config.ProgressColumn(format="%.0f", min_value=0, max_value=500),
-                           "24h change": st.column_config.NumberColumn(format="%+.0f")})
-    with st.container(border=True):
-        _dashboard_comparison(data)
-    f = data["forecaster"]
-    metrics = f["metrics"].iloc[0]
-    with st.container(border=True):
-        st.markdown("### Model & data transparency")
-        st.html(f"""<div class="trust-row">
-          <div><b>{'Demonstration clustering' if demo_mode else 'Saved clustering model'}</b>
-            StandardScaler + K-Means · {len(features)} inputs. Clusters describe patterns, not health categories.</div>
-          <div><b>1-day AQI MAE · {metrics['AQI MAE (model)']:.1f} points</b>
-            Persistence baseline: {metrics['AQI MAE (persistence)']:.1f} · ML-only backtest, not ensemble accuracy.</div>
-          <div><b>{f['holdout_days']}-day holdout · {f['n_train']:,} fitting rows</b>
-            {'Archived CAMS model estimates' if data['source'] == 'live' else 'Synthetic demo data only'}.
-            Historical errors do not guarantee future performance.</div>
-        </div>""")
-        st.caption("Open Forecast for horizon-specific metrics and Methodology for sources, units and limitations.")
-
+    st.markdown('<div class="observatory-section-head"><div><span class="section-index">04</span><h2>How much to trust the model</h2></div><span class="section-aside">METHOD + LIMITATIONS</span></div>', unsafe_allow_html=True)
+    st.html(f"""<div class="trust-row observatory-trust">
+      <div><b>{'Demonstration clustering' if demo_mode else 'Saved clustering model'}</b>
+        StandardScaler + K-Means · {len(features)} inputs. Clusters describe patterns, not health categories.</div>
+      <div><b>1-day AQI MAE · {metrics['AQI MAE (model)']:.1f} points</b>
+        Persistence baseline: {metrics['AQI MAE (persistence)']:.1f} · ML-only backtest, not ensemble accuracy.</div>
+      <div><b>{f['holdout_days']}-day holdout · {f['n_train']:,} fitting rows</b>
+        {'Archived CAMS model estimates' if data['source'] == 'live' else 'Synthetic demo data only'}. Historical errors do not guarantee future performance.</div>
+    </div>""")
+    st.caption("Data source: Copernicus CAMS via Open-Meteo when available. Offline fallback values are synthetic and are not live observations. Open Forecast and Methodology for full evaluation details.")
+    
 
 @st.fragment
 def _map_explorer(data):
