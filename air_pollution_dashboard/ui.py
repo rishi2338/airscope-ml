@@ -46,8 +46,9 @@ def pollutant_cards(current, hourly):
         unit = "mg/m³" if feature == "CO" else "µg/m³"
         history = hourly[feature] if feature in hourly else []
         label = feature.replace("2.5", "₂.₅").replace("10", "₁₀").replace("2", "₂").replace("3", "₃")
+        delay = (len(cards) % 6) * 55
         cards.append(
-            '<div class="pollutant">'
+            f'<div class="pollutant reveal-card" style="--reveal-delay:{delay}ms">'
             f'<div class="pollutant-name">{label}<small>{name}</small></div>'
             f'<div class="pollutant-value">{display}</div><div class="pollutant-unit">{unit}</div>'
             f'{sparkline(history, color)}<div class="sparkline-caption">Past 24 hours · model estimate</div>'
@@ -61,8 +62,9 @@ def forecast_cards(future, category):
     cards = []
     for _, row in future.head(7).iterrows():
         label, color, _ = category(row["AQI"])
+        delay = len(cards) * 45
         cards.append(
-            '<div class="fc-card">'
+            f'<div class="fc-card reveal-card" style="--reveal-delay:{delay}ms">'
             f'<div class="fc-day">{row["date"]:%a · %d %b}</div>'
             f'<div class="fc-aqi" style="color:{color}">{row["AQI"]:.0f}</div>'
             f'<span class="aqi-badge" style="background:{color}">{escape(label)}</span>'
