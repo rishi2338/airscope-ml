@@ -751,3 +751,88 @@ h3 { font-size: 1.15rem !important; }
     transition-duration: .01ms !important;
   }
 }
+
+
+/* CSS-only 3D atmosphere layer — isolated to presentation, no JS dependency */
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  perspective: 900px;
+}
+.hero > * { position: relative; z-index: 1; }
+.hero::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  width: clamp(130px, 17vw, 220px);
+  aspect-ratio: 1;
+  right: clamp(8px, 4vw, 56px);
+  top: 50%;
+  border-radius: 50%;
+  transform: translateY(-50%) rotateX(-12deg);
+  background:
+    radial-gradient(ellipse at 31% 25%, rgba(190,255,242,.95) 0, rgba(69,231,211,.72) 7%, transparent 25%),
+    repeating-linear-gradient(0deg, transparent 0 17px, rgba(107,245,224,.22) 18px 19px),
+    repeating-linear-gradient(90deg, transparent 0 21px, rgba(107,245,224,.2) 22px 23px),
+    radial-gradient(circle at 36% 34%, #167e8a 0, #0b4b66 43%, #061b36 72%, #020913 100%);
+  box-shadow:
+    inset -24px -16px 34px rgba(0,0,0,.68),
+    inset 10px 8px 24px rgba(173,255,239,.22),
+    0 0 26px rgba(46,226,210,.25),
+    0 0 72px rgba(32,167,210,.13);
+  animation: as3-globe-float 7s ease-in-out infinite;
+  -webkit-mask-image: radial-gradient(circle, #000 65%, transparent 72%);
+  mask-image: radial-gradient(circle, #000 65%, transparent 72%);
+}
+.hero::before {
+  display: block !important;
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  width: clamp(160px, 21vw, 270px);
+  aspect-ratio: 1;
+  right: clamp(-14px, 2.3vw, 35px);
+  top: 50%;
+  border: 1px solid rgba(79,235,220,.42);
+  border-radius: 50%;
+  transform: translateY(-50%) rotateX(67deg) rotateZ(-20deg);
+  box-shadow: 0 0 22px rgba(38,224,210,.09), inset 0 0 22px rgba(38,224,210,.05);
+  animation: as3-orbit 20s linear infinite;
+  background: transparent;
+}
+.kpi, .aqi-panel, .outlook-panel, .pollutant, .city-card, .fc-card,
+.step, .result-card, [data-testid="stMetric"] {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+.kpi:hover, .pollutant:hover, .fc-card:hover, .city-card:hover, .step:hover {
+  transform: perspective(900px) translateY(-4px) rotateX(1.2deg);
+}
+[data-testid="stPlotlyChart"] {
+  transition: transform .28s ease, border-color .28s ease, box-shadow .28s ease;
+}
+[data-testid="stPlotlyChart"]:hover {
+  transform: perspective(1200px) translateY(-2px) rotateX(.35deg);
+  border-color: rgba(105,221,255,.28);
+  box-shadow: 0 16px 34px rgba(0,0,0,.18);
+}
+@keyframes as3-globe-float {
+  0%, 100% { translate: 0 0; filter: saturate(.95); }
+  50% { translate: 0 -8px; filter: saturate(1.12); }
+}
+@keyframes as3-orbit {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
+@media (max-width: 760px) {
+  .hero::after { opacity: .22; right: -40px; width: 150px; }
+  .hero::before { opacity: .22; right: -58px; width: 190px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero::before, .hero::after { animation: none !important; }
+  .kpi:hover, .pollutant:hover, .fc-card:hover, .city-card:hover, .step:hover,
+  [data-testid="stPlotlyChart"]:hover { transform: none !important; }
+}
