@@ -568,6 +568,7 @@ def page_header(kicker, title, subtitle, data=None):
     <section class="hero">
       <div class="eyebrow">AirScope / {escape(kicker)}</div>
       <h1>{escape(title)}</h1><p class="lead">{escape(subtitle)}</p>
+      <div class="hero-signal" aria-hidden="true"><span>LIVE AIR DATA</span><span>ML FORECAST</span><span>PATTERN DISCOVERY</span></div>
     </section>
     <div class="context-bar">{provenance}<span>Particulate-only US EPA AQI · not CPCB AQI</span></div>""")
     if data is not None and data["source"] != "live":
