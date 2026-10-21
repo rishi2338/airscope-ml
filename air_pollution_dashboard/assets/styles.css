@@ -1874,3 +1874,12 @@ body:has(.as-patterns) [data-testid="stSelectbox"], body:has(.as-patterns) [data
     animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important;
   }
 }
+
+
+/* Remove the decorative spinning cyan grid-globe/orbit from the dashboard hero. */
+.hero::before,
+.hero::after {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+}
