@@ -1884,3 +1884,48 @@ body:has(.as-patterns) [data-testid="stSelectbox"], body:has(.as-patterns) [data
   animation: none !important;
 }
 
+
+
+/* PERFORMANCE PASS — preserve the cinematic look while avoiding continuous paint work */
+:root { scroll-behavior: auto; }
+
+/* Keep motion on page entrances, not on every frame while the user scrolls. */
+body:has(.as-map) [data-testid="stPlotlyChart"]::after { content: none !important; animation: none !important; }
+body:has(.as-forecast) [data-testid="stPlotlyChart"] { animation: none !important; }
+body:has(.as-patterns) .kpi { animation: as-world-arrive .45s ease both !important; }
+body:has(.as-patterns) .kpi:nth-child(2),
+body:has(.as-patterns) .kpi:nth-child(3),
+body:has(.as-patterns) .kpi:nth-child(4) { animation-delay: 0s !important; }
+
+/* Avoid expensive hover transforms/shadows on dense chart and data surfaces. */
+[data-testid="stPlotlyChart"],
+[data-testid="stDataFrame"],
+[data-testid="stTable"] { contain: layout paint; }
+[data-testid="stPlotlyChart"]::before,
+[data-testid="stPlotlyChart"]::after { pointer-events: none; }
+.kpi, .pollutant, .fc-card, .city-card, .signal-item {
+  transition: border-color .16s ease, background-color .16s ease !important;
+}
+.kpi:hover, .pollutant:hover, .fc-card:hover, .city-card:hover, .signal-item:hover {
+  transform: none !important;
+  box-shadow: var(--shadow);
+}
+
+/* Keep the visual identity but stop perpetual animation work across long pages. */
+.observatory-section-head,
+.signal-strip,
+.kpi,
+.pollutant,
+.fc-card,
+.observatory-hero { animation-iteration-count: 1 !important; }
+body:has(.as-map) .page-hero,
+body:has(.as-forecast) .page-hero,
+body:has(.as-patterns) .page-hero { animation-iteration-count: 1 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
