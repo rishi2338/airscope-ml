@@ -47,10 +47,17 @@ def _numeric_features(frame):
     for column in numeric.columns:
         normalized = str(column).strip().lower().replace(" ", "_")
         unique_ratio = numeric[column].nunique(dropna=True) / max(1, numeric[column].notna().sum())
+        sequential_index = False
+        if len(numeric) >= 50 and numeric[column].notna().all():
+            values = numeric[column].to_numpy()
+            sequential_index = (
+                np.array_equal(values, np.arange(len(values)))
+                or np.array_equal(values, np.arange(1, len(values) + 1))
+            )
         if (
             normalized in {"id", "index", "row_id", "record_id"}
             or normalized.startswith("unnamed:")
-            or (unique_ratio > 0.98 and len(numeric) >= 50)
+            or sequential_index
         ):
             excluded.append(column)
     numeric = numeric.drop(columns=excluded, errors="ignore")
