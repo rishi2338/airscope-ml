@@ -20,6 +20,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from quality import compute_aqi, csv_export, validate_measurements
 from ui import configure_style, forecast_cards, pollutant_cards
+from dataset_lab import page_dataset_lab
 
 APP_DIR = Path(__file__).resolve().parent
 MODEL_DIR = APP_DIR / "models"
@@ -1380,6 +1381,7 @@ pages = [
     st.Page(page_patterns, title="Patterns", icon=":material/scatter_plot:", url_path="patterns"),
     st.Page(page_analyze, title="Analyze", icon=":material/science:", url_path="analyze"),
     st.Page(page_batch, title="Batch upload", icon=":material/upload_file:", url_path="batch"),
+    st.Page(page_dataset_lab, title="Dataset lab", icon=":material/model_training:", url_path="dataset-lab"),
     st.Page(page_about, title="Methodology", icon=":material/info:", url_path="about"),
 ]
 navigation = st.navigation(pages, position="hidden")
