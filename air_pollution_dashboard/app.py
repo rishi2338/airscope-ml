@@ -565,9 +565,10 @@ def page_header(kicker, title, subtitle, data=None):
         else:
             provenance = '<span style="color:#fbbf24">Offline · synthetic demonstration data</span>'
     st.html(f"""
-    <section class="hero">
+    <section class="hero page-hero" data-view="{escape(kicker.lower().replace(chr(32), '-'))}">
       <div class="eyebrow">AirScope / {escape(kicker)}</div>
       <h1>{escape(title)}</h1><p class="lead">{escape(subtitle)}</p>
+      <div class="hero-signal" aria-hidden="true"><span>LIVE AIR DATA</span><span>ML FORECAST</span><span>PATTERN DISCOVERY</span></div>
     </section>
     <div class="context-bar">{provenance}<span>Particulate-only US EPA AQI · not CPCB AQI</span></div>""")
     if data is not None and data["source"] != "live":
@@ -826,6 +827,7 @@ def _dashboard_comparison(data):
 
 
 def page_dashboard():
+    st.html('<div class="as-page-marker as-overview" aria-hidden="true"></div>')
     data = get_data()
     snap, outlook, history = data["snap"], data["outlook"], data["history"]
 
@@ -981,6 +983,7 @@ def _map_explorer(data):
 
 
 def page_map():
+    st.html('<div class="as-page-marker as-map" aria-hidden="true"></div>')
     data = get_data()
     outlook = data["outlook"]
     page_header("Geospatial view", "Pollution map",
@@ -1034,6 +1037,7 @@ def custom_location_forecast(name, lat, lon, model_revision, _forecaster):
 
 
 def page_forecast():
+    st.html('<div class="as-page-marker as-forecast" aria-hidden="true"></div>')
     data = get_data()
     page_header("Future predicted view", "Air quality forecast",
                 "A machine-learning model trained on 3 months of daily pollutant levels, ensembled with the CAMS atmospheric model, "
@@ -1119,6 +1123,7 @@ def page_forecast():
 
 
 def page_patterns():
+    st.html('<div class="as-page-marker as-patterns" aria-hidden="true"></div>')
     data = get_data()
     page_header("Machine learning", "Pollution pattern explorer",
                 "K-Means clustering groups pollution readings into recurring atmospheric profiles. Explore them in 3D, 2D and PCA space.", data)
