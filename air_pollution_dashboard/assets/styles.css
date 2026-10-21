@@ -1883,3 +1883,65 @@ body:has(.as-patterns) [data-testid="stSelectbox"], body:has(.as-patterns) [data
   display: none !important;
   animation: none !important;
 }
+
+
+/* CINEMATIC BACKGROUND MOTION — subtle atmosphere behind the whole dashboard */
+.stApp {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse at 12% 8%, rgba(20, 105, 115, .16), transparent 34%),
+    radial-gradient(ellipse at 88% 26%, rgba(72, 83, 145, .12), transparent 32%),
+    linear-gradient(160deg, #030a12 0%, #071522 48%, #040b13 100%) !important;
+}
+.stApp::before {
+  content: "";
+  position: fixed;
+  inset: -22%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .58;
+  background:
+    radial-gradient(ellipse at 18% 28%, rgba(30, 210, 191, .15) 0, transparent 28%),
+    radial-gradient(ellipse at 78% 38%, rgba(75, 125, 225, .13) 0, transparent 31%),
+    radial-gradient(ellipse at 54% 88%, rgba(137, 94, 215, .09) 0, transparent 29%);
+  background-size: 130% 130%, 145% 145%, 120% 120%;
+  animation: as-atmosphere-drift 26s ease-in-out infinite alternate;
+  will-change: background-position, transform;
+}
+.stApp::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .17;
+  background-image: radial-gradient(circle, rgba(184, 233, 240, .72) .7px, transparent .95px);
+  background-size: 53px 53px;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
+  animation: as-starlight-drift 75s linear infinite;
+}
+@keyframes as-atmosphere-drift {
+  0% { transform: translate3d(-1.2%, -1%, 0) scale(1); background-position: 0% 10%, 100% 0%, 50% 100%; }
+  50% { transform: translate3d(1.1%, .7%, 0) scale(1.025); background-position: 14% 30%, 80% 18%, 45% 78%; }
+  100% { transform: translate3d(-.3%, 1.2%, 0) scale(1.04); background-position: 22% 8%, 64% 35%, 58% 65%; }
+}
+@keyframes as-starlight-drift {
+  from { background-position: 0 0; }
+  to { background-position: 106px 53px; }
+}
+/* Gentle animated glow on the main page surfaces, without covering charts or controls. */
+.observatory-hero, .page-hero {
+  background-size: 150% 150%, cover, cover !important;
+  animation: as-world-arrive .7s ease both, as-hero-breathe 18s ease-in-out infinite alternate;
+}
+@keyframes as-hero-breathe {
+  0% { background-position: 0% 50%, center, center; }
+  100% { background-position: 100% 50%, center, center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stApp::before, .stApp::after, .observatory-hero, .page-hero {
+    animation: none !important;
+    will-change: auto !important;
+  }
+}
