@@ -28,6 +28,7 @@ MODEL_PATH = MODEL_DIR / "air_pollution_model.pkl"
 SCALER_PATH = MODEL_DIR / "air_pollution_scaler.pkl"
 FEATURES_PATH = MODEL_DIR / "feature_columns.pkl"
 PROFILES_PATH = MODEL_DIR / "cluster_profiles.pkl"
+FORECAST_MODEL_PATH = MODEL_DIR / "air_pollution_forecast.pkl"
 
 st.set_page_config(
     page_title="AirScope 2 | Environmental Intelligence",
@@ -434,6 +435,20 @@ def _recursive(models, states, horizon):
 def train_forecaster(history: pd.DataFrame, holdout_days: int = 14, eval_horizons=(1, 3, 7)):
     """history: daily observed rows (city, date, lat, lon, pollutants). Returns models + backtest."""
     validate_measurements(history, DEFAULT_FEATURES)
+    revision = int(pd.util.hash_pandas_object(history, index=True).sum())
+    # Reuse the saved forecaster only when its training history is identical.
+    # This prevents stale forecasts when the live data changes.
+    try:
+        if FORECAST_MODEL_PATH.is_file():
+            with FORECAST_MODEL_PATH.open("rb") as artifact_file:
+                saved = pickle.load(artifact_file)
+            if (isinstance(saved, dict) and saved.get("revision") == revision
+                    and set(saved.get("models", {})) == set(DEFAULT_FEATURES)
+                    and set(saved.get("resid_std", {})) == set(DEFAULT_FEATURES)):
+                return saved
+    except Exception:
+        # A missing, stale, or incompatible artifact is retrained below.
+        pass
     if history.groupby("city").size().min() <= holdout_days + max(LAGS) + 1:
         raise ValueError("At least 23 complete history days per city are required.")
     X, Y, P, is_test = [], [], [], []
@@ -480,9 +495,19 @@ def train_forecaster(history: pd.DataFrame, holdout_days: int = 14, eval_horizon
                      "AQI skill vs persistence": 1 - ma / pa if pa else np.nan})
 
     models = {pol: _make_regressor().fit(X, Y[:, j] - P[:, j]) for j, pol in enumerate(DEFAULT_FEATURES)}
-    return {"models": models, "resid_std": resid_std, "metrics": pd.DataFrame(rows),
-            "n_train": int(len(X)), "holdout_days": holdout_days,
-            "revision": int(pd.util.hash_pandas_object(history, index=True).sum())}
+    forecaster = {"models": models, "resid_std": resid_std, "metrics": pd.DataFrame(rows),
+                  "n_train": int(len(X)), "holdout_days": holdout_days, "revision": revision}
+    # Persist the trained estimator bundle so future app starts can reuse it.
+    # If the hosting filesystem is read-only, the in-memory forecast still works.
+    try:
+        MODEL_DIR.mkdir(parents=True, exist_ok=True)
+        temp_path = FORECAST_MODEL_PATH.with_suffix(".pkl.tmp")
+        with temp_path.open("wb") as artifact_file:
+            pickle.dump(forecaster, artifact_file, protocol=pickle.HIGHEST_PROTOCOL)
+        temp_path.replace(FORECAST_MODEL_PATH)
+    except OSError:
+        pass
+    return forecaster
 
 
 def forecast_series(forecaster, groups, horizon):
@@ -1097,6 +1122,14 @@ def page_forecast():
     st.dataframe(show.rename(columns={"date": "Date", "source": "Method"}), hide_index=True, width="stretch",
                  column_config={p: st.column_config.NumberColumn(format="%.2f" if p == "CO" else "%.0f") for p in DEFAULT_FEATURES + ["AQI"]})
     st.download_button("Download forecast as CSV", show.to_csv(index=False).encode("utf-8"), "airscope_forecast.csv", "text/csv")
+    st.download_button(
+        "Download trained forecasting model (.pkl)",
+        pickle.dumps(data["forecaster"], protocol=pickle.HIGHEST_PROTOCOL),
+        "air_pollution_forecast.pkl",
+        "application/octet-stream",
+        help="Saved Ridge models, residual ranges, backtest metrics and training revision. Only load pickle files you created or trust.",
+    )
+    st.caption("The app trains from its current historical CAMS data, saves the model bundle when the host permits, and reuses it only when the training history matches exactly.")
 
     st.markdown("### India outlook ranking")
     window = data["outlook"][data["outlook"]["horizon"] <= horizon]
